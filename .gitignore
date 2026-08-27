@@ -1,0 +1,49 @@
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+*.egg
+dist/
+build/
+.eggs/
+
+# ===== Virtual Environments =====
+venv/
+.venv/
+env/
+ENV/
+
+# ===== IDE =====
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ===== Project-Specific =====
+# Raw data files (too large for Git)
+data/raw/
+data/processed/
+data/models/
+
+# Cached weather data
+.cache/
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# Environment variables
+.env
+.env.local
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Extracted PDF text (temp)
+extracted_pdf*.txt
