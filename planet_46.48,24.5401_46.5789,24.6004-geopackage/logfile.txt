@@ -1,0 +1,17 @@
+File:
+  Name: /data/bbbike/extract/running/508e5b5bd548930188265edf17532391/planet_46.48,24.5401_46.5789,24.6004.osm.pbf
+  Format: PBF
+  Compression: none
+  Size: 210291
+Header:
+  Bounding boxes:
+    (46.48,24.5401,46.5789,24.6004)
+  With history: no
+  Options:
+    generator=https://download.BBBike.org
+    osmosis_replication_timestamp=2026-08-31T23:00:00Z
+    pbf_dense_nodes=true
+    pbf_optional_feature_0=Sort.Type_then_ID
+    sorting=Type_then_ID
+    timestamp=2026-08-31T23:00:00Z
+osmium2geopackage version GDAL 3.6.2, released 2023/01/02
