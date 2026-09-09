@@ -67,6 +67,16 @@ class WeatherForecast:
         """Return the closest hourly snapshot to *target_time*."""
         if self.hourly.empty:
             return None
+            
+        # Ensure target_time is timezone-naive to match Open-Meteo's local time formatting
+        if target_time.tzinfo is not None:
+            import pytz
+            try:
+                tz = pytz.timezone(self.timezone)
+                target_time = pd.Timestamp(target_time).tz_convert(tz).tz_localize(None)
+            except Exception:
+                target_time = target_time.replace(tzinfo=None) # Fallback
+
         idx = (self.hourly["time"] - target_time).abs().idxmin()
         row = self.hourly.iloc[idx]
         return WeatherSnapshot(

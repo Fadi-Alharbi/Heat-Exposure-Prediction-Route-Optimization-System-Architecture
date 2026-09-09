@@ -18,6 +18,9 @@ from dataclasses import dataclass
 
 import numpy as np
 from loguru import logger
+from pyproj import Transformer
+from shapely import affinity
+from shapely.ops import transform, unary_union
 
 from src.feature_engineering.solar_calculator import SolarPosition
 
@@ -44,6 +47,9 @@ class ShadowEstimator:
 
     def __init__(self, max_shadow_distance_m: float = 100.0):
         self.max_shadow_distance_m = max_shadow_distance_m
+        # Riyadh is in UTM zone 38N.  Shadow geometry must be calculated in
+        # metres, never directly in latitude/longitude degrees.
+        self._to_metric = Transformer.from_crs("EPSG:4326", "EPSG:32638", always_xy=True)
 
     def estimate_shade_fraction(
         self,
@@ -150,6 +156,65 @@ class ShadowEstimator:
             shade_fraction=round(total_shade, 3),
             shadow_sources=sources["building"] + sources["tree"],
             dominant_source=dominant,
+        )
+
+    def estimate_shade_from_footprints(
+        self,
+        road_geometry,
+        road_width_m: float,
+        solar_position: SolarPosition,
+        buildings: list[dict],
+    ) -> ShadowResult:
+        """Measure shade using projected building footprints and road area.
+
+        Each footprint is extruded opposite the sun by ``height / tan(altitude)``.
+        The returned fraction is the shadowed road-surface area, rather than a
+        proximity score based on the building centroid.
+        """
+        if not solar_position.is_daytime:
+            return ShadowResult(0, 1.0, 0, "none")
+        if solar_position.altitude_deg < 2.0 or not buildings:
+            return ShadowResult(0, 0.0, 0, "none")
+
+        road_m = transform(self._to_metric.transform, road_geometry)
+        road_area = road_m.buffer(max(road_width_m, 1.0) / 2.0, cap_style=2)
+        if road_area.is_empty or road_area.area == 0:
+            return ShadowResult(0, 0.0, 0, "none")
+
+        shadow_direction = math.radians((solar_position.azimuth_deg + 180.0) % 360.0)
+        intersections = []
+        source_count = 0
+        for building in buildings:
+            footprint = building.get("geometry")
+            if footprint is None or footprint.is_empty:
+                continue
+            height = float(building.get("height_m", 9.0))
+            shadow_length = min(
+                self.max_shadow_distance_m,
+                height / math.tan(solar_position.altitude_rad),
+            )
+            footprint_m = transform(self._to_metric.transform, footprint)
+            dx = shadow_length * math.sin(shadow_direction)
+            dy = shadow_length * math.cos(shadow_direction)
+            # Convex hull of footprint and its translated copy is the 2.5D
+            # ground-shadow footprint for a vertical building approximation.
+            shadow = unary_union([
+                footprint_m,
+                affinity.translate(footprint_m, xoff=dx, yoff=dy),
+            ]).convex_hull
+            overlap = shadow.intersection(road_area)
+            if not overlap.is_empty:
+                intersections.append(overlap)
+                source_count += 1
+
+        if not intersections:
+            return ShadowResult(0, 0.0, 0, "none")
+        shaded_area = unary_union(intersections).area
+        return ShadowResult(
+            segment_id=0,
+            shade_fraction=round(min(1.0, shaded_area / road_area.area), 3),
+            shadow_sources=source_count,
+            dominant_source="building",
         )
 
     def _shadow_contribution(

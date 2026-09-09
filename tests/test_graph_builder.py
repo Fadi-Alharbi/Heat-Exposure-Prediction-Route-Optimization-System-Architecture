@@ -44,8 +44,8 @@ class TestWeightAssigner:
             heat_exposure_score=30.0,
             segment_duration_min=1.0,
         )
-        # 0.5 * 60 + 0.5 * (30 * 1) = 30 + 15 = 45
-        assert abs(cost - 45.0) < 0.1
+        # 0.5 * 1 minute + 0.5 * (30 / 50 heat-equivalent minutes) = 0.8
+        assert abs(cost - 0.8) < 0.1
 
 
 class TestGraphWeighting:

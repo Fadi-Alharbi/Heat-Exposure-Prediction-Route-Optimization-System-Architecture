@@ -163,63 +163,177 @@ def main():
 
     # ── Tab 2: Route Optimization ───────────────────────────
     with tab2:
-        st.subheader("🗺️ Route Optimization")
+        st.subheader("🗺️ Interactive Route Optimizer")
 
-        col1, col2 = st.columns(2)
+        # Load Map Data via Cache
+        @st.cache_resource
+        def load_neighborhood_map_v2():
+            from src.data_ingestion.osm_fetcher import OSMFetcher
+            fetcher = OSMFetcher()
+            gpkg = "planet_46.48,24.5401_46.5789,24.6004-geopackage/planet_46.48,24.5401_46.5789,24.6004.gpkg"
+            return fetcher.fetch_from_geopackage(gpkg)
+
+        map_data = load_neighborhood_map_v2()
+        
+        # Center of the neighborhood
+        center_lat, center_lon = map_data.center if map_data.center != (0.0, 0.0) else (24.57, 46.53)
+
+        if "origin" not in st.session_state:
+            st.session_state.origin = None
+        if "destination" not in st.session_state:
+            st.session_state.destination = None
+
+        st.markdown("**Step 1: Click on the map to set your ✨Origin📍. Step 2: Click to set your ✨Destination🏁**")
+
+        import folium
+        from streamlit_folium import st_folium
+
+        m_interactive = folium.Map(location=[center_lat, center_lon], zoom_start=15, tiles="CartoDB dark_matter")
+        
+        if st.session_state.origin:
+            folium.Marker(
+                [st.session_state.origin["lat"], st.session_state.origin["lng"]], 
+                popup="Origin 📍", icon=folium.Icon(color="green")
+            ).add_to(m_interactive)
+        
+        if st.session_state.destination:
+            folium.Marker(
+                [st.session_state.destination["lat"], st.session_state.destination["lng"]], 
+                popup="Destination 🏁", icon=folium.Icon(color="red")
+            ).add_to(m_interactive)
+
+        st_map = st_folium(m_interactive, height=400, width="100%", key="interactive_map")
+
+        if st_map and st_map.get("last_clicked"):
+            lat = st_map["last_clicked"]["lat"]
+            lng = st_map["last_clicked"]["lng"]
+            if st.session_state.origin is None:
+                st.session_state.origin = {"lat": lat, "lng": lng}
+                st.rerun()
+            elif st.session_state.destination is None:
+                st.session_state.destination = {"lat": lat, "lng": lng}
+                st.rerun()
+            else:
+                st.session_state.origin = {"lat": lat, "lng": lng}
+                st.session_state.destination = None
+                st.rerun()
+
+        col1, col2, col3 = st.columns(3)
         with col1:
-            st.markdown("**📍 Origin**")
-            orig_lat = st.number_input("Origin Lat", value=24.7136, format="%.4f", key="orig_lat")
-            orig_lon = st.number_input("Origin Lon", value=46.6753, format="%.4f", key="orig_lon")
-
+            if st.session_state.origin:
+                st.success(f"📍 Origin: {st.session_state.origin['lat']:.4f}, {st.session_state.origin['lng']:.4f}")
+            else:
+                st.info("📍 Please click to select Origin")
+                
         with col2:
-            st.markdown("**🏁 Destination**")
-            dest_lat = st.number_input("Dest Lat", value=24.7000, format="%.4f", key="dest_lat")
-            dest_lon = st.number_input("Dest Lon", value=46.6900, format="%.4f", key="dest_lon")
+            if st.session_state.destination:
+                st.error(f"🏁 Destination: {st.session_state.destination['lat']:.4f}, {st.session_state.destination['lng']:.4f}")
+            else:
+                st.info("🏁 Please click to select Destination")
 
-        if st.button("🔍 Find Routes", type="primary"):
-            with st.spinner("Analyzing routes and heat conditions..."):
-                st.info(
-                    "🏗️ **Full route optimization requires OSMnx graph download.**\n\n"
-                    "This is a demonstration of the system architecture. "
-                    "In production, the system would:\n"
-                    "1. Download the road network from OpenStreetMap\n"
-                    "2. Fetch real-time weather data\n"
-                    "3. Calculate solar position and shadows\n"
-                    "4. Predict heat exposure for each road segment\n"
-                    "5. Find optimal routes using weighted graph algorithms\n"
-                    "6. Generate recommendations with explanations"
-                )
+        with col3:
+            if st.button("🔄 Reset Map Points"):
+                st.session_state.origin = None
+                st.session_state.destination = None
+                st.rerun()
 
-                # Show example comparison
-                st.markdown("---")
-                st.subheader("📊 Example Route Comparison")
+        if st.session_state.origin and st.session_state.destination:
+            orig_lat, orig_lon = st.session_state.origin["lat"], st.session_state.origin["lng"]
+            dest_lat, dest_lon = st.session_state.destination["lat"], st.session_state.destination["lng"]
+            
+            if st.button("🔍 Analyze & Find Best Routes", type="primary"):
+                with st.spinner("Calculating sun position, building shadows, and route costs..."):
+                    from src.optimization.graph_builder import GraphBuilder
+                    from src.optimization.path_finder import PathFinder
+                    import networkx as nx
+                    from src.data_ingestion.weather_client import WeatherSnapshot
 
-                example_data = pd.DataFrame({
-                    "Route": ["🅰️ Fastest", "🅱️ Balanced ⭐", "🅲️ Coolest"],
-                    "Time (min)": [15, 18, 22],
-                    "Distance (km)": [3.2, 3.8, 4.1],
-                    "Avg Heat Exposure": [42.5, 31.2, 25.8],
-                    "Shade Coverage": ["12%", "45%", "68%"],
-                    "Recommended": ["", "✓", ""],
-                })
-                st.dataframe(example_data, hide_index=True, use_container_width=True)
-
-                # Heat exposure bar chart
-                fig = go.Figure(data=[
-                    go.Bar(
-                        name="Heat Exposure",
-                        x=["Route A\n(Fastest)", "Route B\n(Balanced)", "Route C\n(Coolest)"],
-                        y=[42.5, 31.2, 25.8],
-                        marker_color=["#FF5252", "#FF9800", "#4CAF50"],
+                    # Build Graph with Weather & Time
+                    client = WeatherClient()
+                    weather = client.get_current(center_lat, center_lon)
+                    if weather is None:
+                        weather = WeatherSnapshot(
+                            timestamp=dt.datetime.now(), latitude=center_lat, longitude=center_lon,
+                            temperature_c=40.0, relative_humidity_pct=20.0, wind_speed_kmh=10.0,
+                            direct_radiation_wm2=700.0, diffuse_radiation_wm2=100.0, cloud_cover_pct=0.0
+                        )
+                    
+                    trip_time = dt.datetime.combine(dep_date, dt.time(dep_hour, 0))
+                    
+                    builder = GraphBuilder()
+                    graph = builder.build_weighted_graph(
+                        graph=map_data.road_graph,
+                        weather=weather,
+                        trip_time=trip_time,
+                        buildings_gdf=map_data.buildings_gdf,
+                        trees_gdf=map_data.trees_gdf
                     )
-                ])
-                fig.update_layout(
-                    title="Heat Exposure Comparison",
-                    yaxis_title="Heat Exposure Score",
-                    template="plotly_dark",
-                    height=350,
-                )
-                st.plotly_chart(fig, use_container_width=True)
+
+                    # Extract largest strongly connected component to avoid "no path" errors
+                    components = list(nx.strongly_connected_components(graph))
+                    if not components:
+                        st.error("The map does not contain connected streets.")
+                        st.stop()
+                    
+                    largest_cc = max(components, key=len)
+                    sub_graph = graph.subgraph(largest_cc)
+
+                    def get_closest_node(lon, lat, G):
+                        best_n = None
+                        best_d = float('inf')
+                        for n, data in G.nodes(data=True):
+                            d = (data['x'] - lon)**2 + (data['y'] - lat)**2
+                            if d < best_d:
+                                best_d = d
+                                best_n = n
+                        return best_n
+
+                    u_node = get_closest_node(orig_lon, orig_lat, sub_graph)
+                    v_node = get_closest_node(dest_lon, dest_lat, sub_graph)
+
+                    finder = PathFinder()
+                    routes = finder.compare_routes(sub_graph, u_node, v_node)
+
+                    if not routes:
+                        st.error("Could not find a valid path. Try adjusting points closer to roads.")
+                    else:
+                        st.markdown("### 🗺️ Proposed Routes")
+                        m_final = folium.Map(location=[center_lat, center_lon], zoom_start=15, tiles="CartoDB dark_matter")
+                        
+                        colors = {"Fastest": "#FF5252", "Coolest": "#4CAF50", "Balanced": "#FF9800"}
+                        
+                        for r in routes:
+                            coords = []
+                            for node_id in r.path_nodes:
+                                n_lat = sub_graph.nodes[node_id]['y']
+                                n_lon = sub_graph.nodes[node_id]['x']
+                                coords.append((n_lat, n_lon))
+                                
+                            color = colors.get(r.label, "#FFFFFF")
+                            weight = 8 if r.is_recommended else 4
+                            
+                            folium.PolyLine(
+                                coords, color=color, weight=weight, opacity=0.8,
+                                tooltip=f"{r.label} | {r.total_time_min} mins | Est. Temperature: ~{weather.temperature_c + (r.cumulative_heat_exposure/10):.1f}°C"
+                            ).add_to(m_final)
+
+                        folium.Marker([orig_lat, orig_lon], popup="Origin 📍", icon=folium.Icon(color="green")).add_to(m_final)
+                        folium.Marker([dest_lat, dest_lon], popup="Destination 🏁", icon=folium.Icon(color="red")).add_to(m_final)
+
+                        from streamlit_folium import folium_static
+                        folium_static(m_final, width=800, height=500)
+
+                        st.markdown("### 📊 Detailed Route Comparison")
+                        table_data = []
+                        for r in routes:
+                            table_data.append({
+                                "Route 🛣️": f"{r.label} {'⭐ (Recommended)' if r.is_recommended else ''}",
+                                "Time (min) ⏱️": r.total_time_min,
+                                "Distance (km) 📍": round(r.total_distance_m / 1000, 2),
+                                "Shade Coverage 🌳": f"{r.avg_shade_fraction*100:.1f}%",
+                                "Heat Exposure Score 🌡️": r.cumulative_heat_exposure,
+                            })
+                        st.dataframe(pd.DataFrame(table_data), hide_index=True, use_container_width=True)
 
     # ── Tab 3: Best Departure Time ──────────────────────────
     with tab3:

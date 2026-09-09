@@ -1,0 +1,802 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🌡️ Heat Route Optimizer — West Riyadh</title>
+    <meta name="description" content="Interactive heat-aware route optimization system for safer outdoor navigation in hot climates">
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --bg-primary: #0a0e1a;
+            --bg-secondary: #111827;
+            --bg-card: #1a2036;
+            --bg-card-hover: #1f2848;
+            --border: #2a3458;
+            --text-primary: #f0f4ff;
+            --text-secondary: #94a3c0;
+            --text-muted: #5e6d8a;
+            --accent-orange: #ff6b35;
+            --accent-blue: #3b82f6;
+            --accent-green: #00e676;
+            --accent-red: #ff5252;
+            --accent-yellow: #ffd740;
+            --gradient-hero: linear-gradient(135deg, #ff6b35 0%, #ff9800 50%, #ffd740 100%);
+            --shadow-lg: 0 20px 60px rgba(0,0,0,0.4);
+            --shadow-card: 0 4px 24px rgba(0,0,0,0.3);
+            --radius: 16px;
+            --radius-sm: 10px;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            overflow-x: hidden;
+            min-height: 100vh;
+        }
+
+        /* ── Header ───────────────────────────────── */
+        .header {
+            background: linear-gradient(180deg, rgba(10,14,26,0.95) 0%, rgba(10,14,26,0.8) 100%);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border);
+            padding: 12px 24px;
+            position: fixed;
+            top: 0; left: 0; right: 0;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .header-title {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .header-title .logo { font-size: 28px; filter: drop-shadow(0 0 8px rgba(255,107,53,0.5)); }
+
+        .header-title h1 {
+            font-size: 1.15rem;
+            font-weight: 700;
+            background: var(--gradient-hero);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .header-subtitle { font-size: 0.7rem; color: var(--text-muted); font-weight: 400; }
+
+        .header-status {
+            display: flex; align-items: center; gap: 8px;
+            font-size: 0.8rem; color: var(--text-secondary);
+        }
+
+        .status-dot {
+            width: 8px; height: 8px; border-radius: 50%;
+            background: var(--accent-green);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%,100% { opacity:1; box-shadow: 0 0 0 0 rgba(0,230,118,0.4); }
+            50% { opacity:0.8; box-shadow: 0 0 0 6px rgba(0,230,118,0); }
+        }
+
+        /* ── Layout ───────────────────────────────── */
+        .main-layout { display: flex; height: 100vh; padding-top: 56px; }
+
+        /* ── Sidebar ──────────────────────────────── */
+        .sidebar {
+            width: 380px; min-width: 380px;
+            background: var(--bg-secondary);
+            border-right: 1px solid var(--border);
+            overflow-y: auto;
+            display: flex; flex-direction: column;
+            scrollbar-width: thin; scrollbar-color: var(--border) transparent;
+        }
+
+        .sidebar::-webkit-scrollbar { width: 6px; }
+        .sidebar::-webkit-scrollbar-track { background: transparent; }
+        .sidebar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+        .sidebar-section { padding: 18px 20px; border-bottom: 1px solid var(--border); }
+
+        .section-title {
+            font-size: 0.78rem; font-weight: 700; color: var(--text-secondary);
+            text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 14px;
+            display: flex; align-items: center; gap: 8px;
+        }
+
+        .section-title .icon { font-size: 1rem; }
+
+        /* ── Point Cards ──────────────────────────── */
+        .point-card {
+            background: var(--bg-card); border: 1px solid var(--border);
+            border-radius: var(--radius-sm); padding: 12px 14px; margin-bottom: 8px;
+            display: flex; align-items: center; gap: 12px;
+            transition: all 0.25s ease; cursor: pointer;
+        }
+
+        .point-card:hover { background: var(--bg-card-hover); border-color: var(--accent-blue); }
+        .point-card.active { border-color: var(--accent-orange); box-shadow: 0 0 0 2px rgba(255,107,53,0.2); }
+        .point-card.set { border-color: var(--accent-green); }
+
+        .point-dot {
+            width: 34px; height: 34px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 15px; flex-shrink: 0;
+        }
+
+        .point-dot.origin { background: rgba(0,230,118,0.15); border: 2px solid var(--accent-green); }
+        .point-dot.dest { background: rgba(255,82,82,0.15); border: 2px solid var(--accent-red); }
+
+        .point-info { flex: 1; }
+        .point-label { font-size: 0.82rem; font-weight: 600; }
+        .point-coords { font-size: 0.72rem; color: var(--text-muted); font-family: 'Inter', monospace; }
+
+        /* ── Time Controls ────────────────────────── */
+        .time-control {
+            background: var(--bg-card); border: 1px solid var(--border);
+            border-radius: var(--radius-sm); padding: 14px;
+        }
+
+        .time-row { display: flex; gap: 10px; margin-bottom: 10px; }
+        .time-field { flex: 1; }
+
+        .time-field label {
+            display: block; font-size: 0.72rem; color: var(--text-secondary);
+            margin-bottom: 5px; font-weight: 500;
+        }
+
+        .time-field input, .time-field select {
+            width: 100%; padding: 9px 10px;
+            background: var(--bg-primary); border: 1px solid var(--border);
+            border-radius: 8px; color: var(--text-primary);
+            font-size: 0.85rem; font-family: 'Inter', sans-serif;
+            outline: none; transition: border-color 0.2s;
+        }
+
+        .time-field input:focus { border-color: var(--accent-orange); }
+
+        .speed-control { margin-top: 10px; }
+
+        .speed-header {
+            display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;
+        }
+
+        .speed-value { font-size: 0.82rem; font-weight: 700; color: var(--accent-orange); }
+
+        input[type="range"] {
+            -webkit-appearance: none; width: 100%; height: 6px;
+            background: var(--bg-primary); border-radius: 3px; outline: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%;
+            background: var(--accent-orange); cursor: pointer;
+            box-shadow: 0 0 8px rgba(255,107,53,0.4);
+        }
+
+        /* ── Buttons ──────────────────────────────── */
+        .btn-analyze {
+            width: 100%; padding: 13px; border: none; border-radius: var(--radius-sm);
+            font-size: 0.95rem; font-weight: 700; font-family: 'Inter', sans-serif;
+            cursor: pointer; transition: all 0.3s ease;
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+        }
+
+        .btn-analyze.primary { background: var(--gradient-hero); color: #fff; }
+        .btn-analyze.primary:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(255,107,53,0.35); }
+        .btn-analyze.primary:disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: none; }
+
+        .btn-reset {
+            width: 100%; padding: 9px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+            background: transparent; color: var(--text-secondary); font-size: 0.8rem;
+            font-family: 'Inter', sans-serif; cursor: pointer; margin-top: 6px; transition: all 0.2s;
+        }
+
+        .btn-reset:hover { border-color: var(--accent-red); color: var(--accent-red); }
+
+        /* ── Weather ──────────────────────────────── */
+        .weather-strip { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
+
+        .weather-item {
+            background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px;
+            padding: 8px 10px; display: flex; align-items: center; gap: 8px;
+        }
+
+        .weather-item .wi-icon { font-size: 1.1rem; }
+        .weather-item .wi-val { font-size: 0.88rem; font-weight: 700; }
+        .weather-item .wi-label { font-size: 0.65rem; color: var(--text-muted); }
+
+        /* ── Route Cards ──────────────────────────── */
+        .route-card {
+            background: var(--bg-card); border: 1px solid var(--border);
+            border-radius: var(--radius); padding: 14px; margin-bottom: 10px;
+            cursor: pointer; transition: all 0.3s ease; position: relative; overflow: hidden;
+        }
+
+        .route-card::before {
+            content: ''; position: absolute; top: 0; left: 0;
+            width: 4px; height: 100%;
+        }
+
+        .route-card.fastest::before { background: var(--accent-red); }
+        .route-card.coolest::before { background: var(--accent-green); }
+        .route-card.balanced::before { background: var(--accent-yellow); }
+
+        .route-card:hover { background: var(--bg-card-hover); transform: translateX(4px); }
+
+        .route-card.recommended {
+            border-color: var(--accent-green); box-shadow: 0 0 20px rgba(0,230,118,0.1);
+        }
+
+        .recommended-badge {
+            position: absolute; top: 8px; right: 8px;
+            background: var(--accent-green); color: #000;
+            font-size: 0.6rem; font-weight: 800; padding: 2px 8px;
+            border-radius: 4px; text-transform: uppercase; letter-spacing: 0.5px;
+        }
+
+        .route-header { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+
+        .route-color-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+
+        .route-name { font-size: 0.95rem; font-weight: 700; }
+
+        .route-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+
+        .route-stat { text-align: center; }
+        .route-stat .value { font-size: 1rem; font-weight: 800; }
+        .route-stat .label { font-size: 0.6rem; color: var(--text-muted); margin-top: 2px; }
+        .route-stat.heat .value { color: var(--accent-red); }
+        .route-stat.time .value { color: var(--accent-blue); }
+        .route-stat.shade .value { color: var(--accent-green); }
+
+        /* ── Solar ────────────────────────────────── */
+        .solar-strip { display: flex; gap: 8px; }
+
+        .solar-item {
+            flex: 1; background: var(--bg-card); border: 1px solid var(--border);
+            border-radius: 8px; padding: 8px; text-align: center;
+        }
+
+        .solar-item .si-icon { font-size: 1.2rem; margin-bottom: 2px; }
+        .solar-item .si-val { font-size: 0.82rem; font-weight: 700; }
+        .solar-item .si-label { font-size: 0.6rem; color: var(--text-muted); }
+
+        /* ── Map ──────────────────────────────────── */
+        .map-container { flex: 1; position: relative; }
+        #map { width: 100%; height: 100%; }
+
+        .map-instructions {
+            position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+            z-index: 800; background: rgba(10,14,26,0.92); backdrop-filter: blur(12px);
+            border: 1px solid var(--border); border-radius: var(--radius-sm);
+            padding: 8px 18px; font-size: 0.82rem; color: var(--text-primary);
+            display: flex; align-items: center; gap: 8px;
+            pointer-events: none; transition: opacity 0.5s;
+        }
+
+        .map-instructions.hidden { opacity: 0; }
+
+        .step-num {
+            width: 22px; height: 22px; border-radius: 50%; background: var(--accent-orange);
+            color: #fff; display: flex; align-items: center; justify-content: center;
+            font-size: 0.7rem; font-weight: 800; flex-shrink: 0;
+        }
+
+        /* ── Loading ──────────────────────────────── */
+        .loading-overlay {
+            position: absolute; inset: 0; background: rgba(10,14,26,0.85);
+            backdrop-filter: blur(8px); display: flex; flex-direction: column;
+            align-items: center; justify-content: center; z-index: 900;
+            opacity: 0; pointer-events: none; transition: opacity 0.3s;
+        }
+
+        .loading-overlay.active { opacity: 1; pointer-events: all; }
+
+        .loading-spinner {
+            width: 50px; height: 50px; border: 4px solid var(--border);
+            border-top-color: var(--accent-orange); border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .loading-text { margin-top: 14px; font-size: 0.9rem; color: var(--text-secondary); }
+        .loading-subtext { font-size: 0.75rem; color: var(--text-muted); margin-top: 4px; }
+
+        /* ── Toast ────────────────────────────────── */
+        .toast {
+            position: fixed; bottom: 20px; left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            background: var(--bg-card); border: 1px solid var(--border);
+            border-radius: var(--radius-sm); padding: 10px 20px;
+            font-size: 0.82rem; color: var(--text-primary); z-index: 2000;
+            box-shadow: var(--shadow-lg);
+            transition: transform 0.4s cubic-bezier(0.16,1,0.3,1);
+            display: flex; align-items: center; gap: 8px;
+        }
+
+        .toast.show { transform: translateX(-50%) translateY(0); }
+        .toast.error { border-color: var(--accent-red); }
+        .toast.success { border-color: var(--accent-green); }
+
+        /* ── Legend ────────────────────────────────── */
+        .map-legend {
+            position: absolute; bottom: 20px; right: 12px; z-index: 800;
+            background: rgba(10,14,26,0.92); backdrop-filter: blur(12px);
+            border: 1px solid var(--border); border-radius: var(--radius-sm);
+            padding: 10px 14px;
+        }
+
+        .legend-title {
+            font-size: 0.7rem; font-weight: 700; color: var(--text-secondary);
+            margin-bottom: 6px; text-transform: uppercase; letter-spacing: 1px;
+        }
+
+        .legend-item {
+            display: flex; align-items: center; gap: 8px;
+            font-size: 0.75rem; color: var(--text-primary); margin-bottom: 3px;
+        }
+
+        .legend-line { width: 22px; height: 4px; border-radius: 2px; }
+
+        /* ── Responsive ───────────────────────────── */
+        @media (max-width: 900px) {
+            .main-layout { flex-direction: column-reverse; }
+            .sidebar { width: 100%; min-width: unset; max-height: 50vh; border-right: none; border-top: 1px solid var(--border); }
+        }
+
+        .leaflet-container { background: var(--bg-primary) !important; }
+        .custom-origin-icon, .custom-dest-icon {
+            display: flex; align-items: center; justify-content: center;
+            font-size: 22px; filter: drop-shadow(0 2px 8px rgba(0,0,0,0.6));
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Header -->
+    <header class="header">
+        <div class="header-title">
+            <span class="logo">🌡️</span>
+            <div>
+                <h1>Heat Route Optimizer</h1>
+                <div class="header-subtitle">Heat Exposure Prediction & Route Optimization — West Riyadh</div>
+            </div>
+        </div>
+        <div class="header-status">
+            <div class="status-dot"></div>
+            <span>Connected | Data Loaded</span>
+        </div>
+    </header>
+
+    <!-- Main Layout -->
+    <div class="main-layout">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <!-- Points -->
+            <div class="sidebar-section">
+                <div class="section-title"><span class="icon">📍</span> Select Locations</div>
+
+                <div class="point-card active" id="originCard" onclick="setActivePoint('origin')">
+                    <div class="point-dot origin">📍</div>
+                    <div class="point-info">
+                        <div class="point-label">Origin</div>
+                        <div class="point-coords" id="originCoords">Click on the map to select</div>
+                    </div>
+                </div>
+
+                <div class="point-card" id="destCard" onclick="setActivePoint('dest')">
+                    <div class="point-dot dest">🏁</div>
+                    <div class="point-info">
+                        <div class="point-label">Destination</div>
+                        <div class="point-coords" id="destCoords">Click on the map to select</div>
+                    </div>
+                </div>
+
+                <button class="btn-reset" onclick="resetPoints()">🔄 Reset Points</button>
+            </div>
+
+            <!-- Time & Speed -->
+            <div class="sidebar-section">
+                <div class="section-title"><span class="icon">🕐</span> Trip Time & Speed</div>
+                <div class="time-control">
+                    <div class="time-row">
+                        <div class="time-field">
+                            <label>Date</label>
+                            <input type="date" id="tripDate" />
+                        </div>
+                        <div class="time-field">
+                            <label>Time</label>
+                            <input type="time" id="tripTime" value="12:00" />
+                        </div>
+                    </div>
+                    <div class="speed-control">
+                        <div class="speed-header">
+                            <label style="font-size:0.72rem;color:var(--text-secondary)">Speed</label>
+                            <span class="speed-value" id="speedVal">15 km/h</span>
+                        </div>
+                        <input type="range" id="speedSlider" min="3" max="60" value="15"
+                               oninput="document.getElementById('speedVal').textContent=this.value+' km/h'" />
+                        <div style="display:flex;justify-content:space-between;font-size:0.62rem;color:var(--text-muted);margin-top:3px">
+                            <span>🚶 Walk</span><span>🚲 Bike</span><span>🚗 Drive</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Analyze Button -->
+            <div class="sidebar-section">
+                <button class="btn-analyze primary" id="analyzeBtn" onclick="analyzeRoutes()" disabled>
+                    <span>🔍</span><span>Analyze & Find Best Routes</span>
+                </button>
+            </div>
+
+            <!-- Weather -->
+            <div class="sidebar-section" id="weatherSection" style="display:none">
+                <div class="section-title"><span class="icon">🌤️</span> Current Weather</div>
+                <div class="weather-strip" id="weatherStrip"></div>
+            </div>
+
+            <!-- Solar -->
+            <div class="sidebar-section" id="solarSection" style="display:none">
+                <div class="section-title"><span class="icon">☀️</span> Sun Position</div>
+                <div class="solar-strip" id="solarStrip"></div>
+            </div>
+
+            <!-- Routes -->
+            <div class="sidebar-section" id="routeResults" style="display:none">
+                <div class="section-title"><span class="icon">🛣️</span> Proposed Routes</div>
+                <div id="routeCards"></div>
+            </div>
+        </aside>
+
+        <!-- Map -->
+        <div class="map-container">
+            <div id="map"></div>
+
+            <div class="map-instructions" id="mapInstructions">
+                <span class="step-num" id="stepNum">1</span>
+                <span id="stepText">Click on the map to set your Origin point</span>
+            </div>
+
+            <div class="loading-overlay" id="loadingOverlay">
+                <div class="loading-spinner"></div>
+                <div class="loading-text">Calculating routes...</div>
+                <div class="loading-subtext">Analyzing sun position • building shadows • temperature</div>
+            </div>
+
+            <div class="map-legend" id="mapLegend" style="display:none">
+                <div class="legend-title">Routes Legend</div>
+                <div class="legend-item"><div class="legend-line" style="background:#FF5252"></div><span>Fastest Route</span></div>
+                <div class="legend-item"><div class="legend-line" style="background:#00E676"></div><span>Coolest Route</span></div>
+                <div class="legend-item"><div class="legend-line" style="background:#FFD740"></div><span>Balanced Route</span></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div class="toast" id="toast">
+        <span id="toastIcon">✅</span>
+        <span id="toastText"></span>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <script>
+        // ── State ─────────────────────────────────────
+        let map;
+        let originMarker = null, destMarker = null;
+        let originLatLng = null, destLatLng = null;
+        let activePoint = 'origin';
+        let routeLayers = [];
+
+        // BBBike extract bounding box
+        const BOUNDS = {
+            south: 24.5401, north: 24.6004,
+            west: 46.48, east: 46.5789
+        };
+
+        // ── Init ──────────────────────────────────────
+        document.addEventListener('DOMContentLoaded', () => {
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('tripDate').value = today;
+            const now = new Date();
+            document.getElementById('tripTime').value =
+                String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
+
+            initMap();
+            loadRoadNetwork();
+        });
+
+        function initMap() {
+            const center = [(BOUNDS.south + BOUNDS.north) / 2, (BOUNDS.west + BOUNDS.east) / 2];
+
+            map = L.map('map', {
+                center: center,
+                zoom: 14,
+                zoomControl: false,
+                maxBounds: [
+                    [BOUNDS.south - 0.01, BOUNDS.west - 0.01],
+                    [BOUNDS.north + 0.01, BOUNDS.east + 0.01]
+                ],
+                maxBoundsViscosity: 0.9,
+            });
+
+            // No external basemap: the visible road layer comes only from
+            // the bundled BBBike GeoPackage through /api/road-network.
+
+            L.control.zoom({ position: 'topright' }).addTo(map);
+
+            // Fit to BBBike bounding box
+            map.fitBounds([[BOUNDS.south, BOUNDS.west], [BOUNDS.north, BOUNDS.east]]);
+
+            map.on('click', onMapClick);
+        }
+
+        async function loadRoadNetwork() {
+            try {
+                const resp = await fetch('/api/road-network');
+                const geojson = await resp.json();
+
+                L.geoJSON(geojson, {
+                    style: () => ({ color: '#5080ff', weight: 1.2, opacity: 0.35 }),
+                    onEachFeature: (feature, layer) => {
+                        const name = feature.properties.name;
+                        if (name) layer.bindTooltip(name, { permanent: false, direction: 'top' });
+                    }
+                }).addTo(map);
+            } catch (e) {
+                console.error('Failed to load road network:', e);
+            }
+        }
+
+        // ── Map Click ─────────────────────────────────
+        function onMapClick(e) {
+            const { lat, lng } = e.latlng;
+            if (activePoint === 'origin') setOrigin(lat, lng);
+            else setDestination(lat, lng);
+        }
+
+        function setOrigin(lat, lng) {
+            originLatLng = { lat, lng };
+            if (originMarker) map.removeLayer(originMarker);
+            originMarker = L.marker([lat, lng], {
+                icon: L.divIcon({ html: '📍', className: 'custom-origin-icon', iconSize: [30,30], iconAnchor: [15,30] }),
+                draggable: true,
+            }).addTo(map);
+            originMarker.on('dragend', e => { originLatLng = { lat: e.target.getLatLng().lat, lng: e.target.getLatLng().lng }; updateUI(); });
+
+            document.getElementById('originCoords').textContent = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+            document.getElementById('originCard').classList.add('set');
+            document.getElementById('originCard').classList.remove('active');
+            setActivePoint('dest');
+            updateUI();
+            showToast('✅', 'Origin set');
+        }
+
+        function setDestination(lat, lng) {
+            destLatLng = { lat, lng };
+            if (destMarker) map.removeLayer(destMarker);
+            destMarker = L.marker([lat, lng], {
+                icon: L.divIcon({ html: '🏁', className: 'custom-dest-icon', iconSize: [30,30], iconAnchor: [15,30] }),
+                draggable: true,
+            }).addTo(map);
+            destMarker.on('dragend', e => { destLatLng = { lat: e.target.getLatLng().lat, lng: e.target.getLatLng().lng }; updateUI(); });
+
+            document.getElementById('destCoords').textContent = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+            document.getElementById('destCard').classList.add('set');
+            updateUI();
+            showToast('✅', 'Destination set — You can now analyze routes');
+        }
+
+        function setActivePoint(type) {
+            activePoint = type;
+            document.getElementById('originCard').classList.toggle('active', type === 'origin');
+            document.getElementById('destCard').classList.toggle('active', type === 'dest');
+            const instrEl = document.getElementById('mapInstructions');
+            document.getElementById('stepNum').textContent = type === 'origin' ? '1' : '2';
+            document.getElementById('stepText').textContent = type === 'origin'
+                ? 'Click on the map to set your Origin point'
+                : 'Click on the map to set your Destination point';
+            instrEl.classList.remove('hidden');
+        }
+
+        function updateUI() {
+            const ok = originLatLng && destLatLng;
+            document.getElementById('analyzeBtn').disabled = !ok;
+            if (ok) document.getElementById('mapInstructions').classList.add('hidden');
+        }
+
+        function resetPoints() {
+            if (originMarker) { map.removeLayer(originMarker); originMarker = null; }
+            if (destMarker) { map.removeLayer(destMarker); destMarker = null; }
+            originLatLng = null; destLatLng = null;
+            document.getElementById('originCoords').textContent = 'Click on the map to select';
+            document.getElementById('destCoords').textContent = 'Click on the map to select';
+            document.getElementById('originCard').classList.remove('set');
+            document.getElementById('destCard').classList.remove('set');
+            clearRoutes();
+            setActivePoint('origin');
+            updateUI();
+        }
+
+        function clearRoutes() {
+            routeLayers.forEach(l => map.removeLayer(l));
+            routeLayers = [];
+            document.getElementById('routeResults').style.display = 'none';
+            document.getElementById('weatherSection').style.display = 'none';
+            document.getElementById('solarSection').style.display = 'none';
+            document.getElementById('mapLegend').style.display = 'none';
+        }
+
+        // ── Analyze ───────────────────────────────────
+        async function analyzeRoutes() {
+            if (!originLatLng || !destLatLng) return;
+            document.getElementById('loadingOverlay').classList.add('active');
+            clearRoutes();
+
+            const timeParts = document.getElementById('tripTime').value.split(':');
+
+            try {
+                const resp = await fetch('/api/find-routes', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        origin_lat: originLatLng.lat,
+                        origin_lon: originLatLng.lng,
+                        dest_lat: destLatLng.lat,
+                        dest_lon: destLatLng.lng,
+                        trip_hour: parseInt(timeParts[0]),
+                        trip_minute: parseInt(timeParts[1] || 0),
+                        trip_date: document.getElementById('tripDate').value,
+                        speed_kmh: parseInt(document.getElementById('speedSlider').value),
+                    }),
+                });
+
+                const data = await resp.json();
+                if (!data.success) {
+                    showToast('❌', data.error || 'Error during calculation', true);
+                    return;
+                }
+
+                displayRoutes(data);
+                displayWeather(data.weather);
+                displaySolar(data.solar);
+                showToast('✅', `Found ${data.routes.length} routes!`);
+
+            } catch (e) {
+                console.error('Route analysis failed:', e);
+                showToast('❌', 'Server connection error', true);
+            } finally {
+                document.getElementById('loadingOverlay').classList.remove('active');
+            }
+        }
+
+        // ── Display Routes ────────────────────────────
+        function displayRoutes(data) {
+            const routes = data.routes;
+            if (!routes || routes.length === 0) return;
+
+            const cardsEl = document.getElementById('routeCards');
+            cardsEl.innerHTML = '';
+
+            const labelMap = { Fastest: '⚡ Fastest Route', Coolest: '🌿 Coolest Route', Balanced: '⚖️ Balanced Route' };
+            const classMap = { Fastest: 'fastest', Coolest: 'coolest', Balanced: 'balanced' };
+
+            // Draw lines — recommended last (on top)
+            const sorted = [...routes].sort((a, b) => a.is_recommended - b.is_recommended);
+
+            sorted.forEach(route => {
+                const line = L.polyline(route.coordinates, {
+                    color: route.color,
+                    weight: route.is_recommended ? 7 : 4,
+                    opacity: route.is_recommended ? 0.95 : 0.7,
+                    dashArray: route.label === 'Balanced' ? '8 6' : null,
+                });
+                line.bindTooltip(`
+                    <strong>${labelMap[route.label] || route.label}</strong><br>
+                    ⏱ ${route.total_time_min} min<br>
+                    📏 ${(route.total_distance_m/1000).toFixed(2)} km<br>
+                    🌡️ Heat Exp: ${route.cumulative_heat_exposure.toFixed(1)}<br>
+                    🌳 Shade: ${(route.avg_shade_fraction*100).toFixed(0)}%
+                `, { sticky: true, direction: 'top' });
+                line.addTo(map);
+                routeLayers.push(line);
+            });
+
+            const allCoords = routes.flatMap(r => r.coordinates);
+            if (allCoords.length) map.fitBounds(L.latLngBounds(allCoords), { padding: [50, 50] });
+
+            // Build cards
+            routes.forEach(route => {
+                const heatColor = route.cumulative_heat_exposure > 25 ? 'var(--accent-red)' :
+                                  route.cumulative_heat_exposure > 15 ? 'var(--accent-yellow)' : 'var(--accent-green)';
+                const card = document.createElement('div');
+                card.className = `route-card ${classMap[route.label]||''} ${route.is_recommended?'recommended':''}`;
+                card.innerHTML = `
+                    ${route.is_recommended ? '<div class="recommended-badge">⭐ RECOMMENDED</div>' : ''}
+                    <div class="route-header">
+                        <div class="route-color-dot" style="background:${route.color}"></div>
+                        <div class="route-name">${labelMap[route.label] || route.label}</div>
+                    </div>
+                    <div class="route-stats">
+                        <div class="route-stat time">
+                            <div class="value">${route.total_time_min}</div>
+                            <div class="label">Minutes ⏱️</div>
+                        </div>
+                        <div class="route-stat heat">
+                            <div class="value" style="color:${heatColor}">${route.cumulative_heat_exposure.toFixed(1)}</div>
+                            <div class="label">Heat Exp. 🌡️</div>
+                        </div>
+                        <div class="route-stat shade">
+                            <div class="value">${(route.avg_shade_fraction*100).toFixed(0)}%</div>
+                            <div class="label">Shade 🌳</div>
+                        </div>
+                    </div>
+                    <div style="margin-top:6px;font-size:0.72rem;color:var(--text-muted)">
+                        📏 ${(route.total_distance_m/1000).toFixed(2)} km
+                    </div>`;
+
+                card.addEventListener('mouseenter', () => {
+                    const idx = sorted.findIndex(r => r.label === route.label);
+                    if (idx >= 0 && routeLayers[idx]) routeLayers[idx].setStyle({ weight: 10, opacity: 1 });
+                });
+                card.addEventListener('mouseleave', () => {
+                    sorted.forEach((r, i) => {
+                        if (routeLayers[i]) routeLayers[i].setStyle({
+                            weight: r.is_recommended ? 7 : 4,
+                            opacity: r.is_recommended ? 0.95 : 0.7
+                        });
+                    });
+                });
+                cardsEl.appendChild(card);
+            });
+
+            document.getElementById('routeResults').style.display = 'block';
+            document.getElementById('mapLegend').style.display = 'block';
+        }
+
+        function displayWeather(w) {
+            if (!w) return;
+            document.getElementById('weatherStrip').innerHTML = `
+                <div class="weather-item"><span class="wi-icon">🌡️</span><div><div class="wi-val">${w.temperature_c}°C</div><div class="wi-label">Temperature</div></div></div>
+                <div class="weather-item"><span class="wi-icon">💧</span><div><div class="wi-val">${w.humidity_pct}%</div><div class="wi-label">Humidity</div></div></div>
+                <div class="weather-item"><span class="wi-icon">💨</span><div><div class="wi-val">${w.wind_kmh} km/h</div><div class="wi-label">Wind</div></div></div>
+                <div class="weather-item"><span class="wi-icon">☀️</span><div><div class="wi-val">${Math.round(w.radiation_wm2)} W/m²</div><div class="wi-label">Radiation</div></div></div>`;
+            document.getElementById('weatherSection').style.display = 'block';
+        }
+
+        function displaySolar(s) {
+            if (!s) return;
+            document.getElementById('solarStrip').innerHTML = `
+                <div class="solar-item"><div class="si-icon">${s.is_daytime?'☀️':'🌙'}</div><div class="si-val">${s.altitude_deg}°</div><div class="si-label">Altitude</div></div>
+                <div class="solar-item"><div class="si-icon">🧭</div><div class="si-val">${s.azimuth_deg}°</div><div class="si-label">Azimuth</div></div>
+                <div class="solar-item"><div class="si-icon">🌅</div><div class="si-val">${s.sunrise}</div><div class="si-label">Sunrise</div></div>
+                <div class="solar-item"><div class="si-icon">🌇</div><div class="si-val">${s.sunset}</div><div class="si-label">Sunset</div></div>`;
+            document.getElementById('solarSection').style.display = 'block';
+        }
+
+        // ── Toast ─────────────────────────────────────
+        function showToast(icon, text, isError = false) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toastIcon').textContent = icon;
+            document.getElementById('toastText').textContent = text;
+            toast.className = `toast show ${isError ? 'error' : 'success'}`;
+            setTimeout(() => toast.classList.remove('show'), 3500);
+        }
+    </script>
+</body>
+</html>

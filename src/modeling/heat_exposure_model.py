@@ -28,6 +28,8 @@ from typing import Any, Literal
 
 import numpy as np
 import pandas as pd
+import joblib
+import os
 from loguru import logger
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.preprocessing import StandardScaler
@@ -88,6 +90,79 @@ class HeatExposureModel:
         self.scaler: StandardScaler | None = None
         self.is_trained = False
         self._init_model()
+        self._try_load_or_train()
+
+    def _try_load_or_train(self) -> None:
+        """Load the trained model and scaler if they exist, otherwise generate data and train."""
+        base_dir = os.path.dirname(__file__)
+        model_path = os.path.join(base_dir, '..', '..', 'data', 'xgboost_heat.joblib')
+        scaler_path = os.path.join(base_dir, '..', '..', 'data', 'scaler.joblib')
+        
+        try:
+            if os.path.exists(model_path) and os.path.exists(scaler_path):
+                self.model = joblib.load(model_path)
+                self.scaler = joblib.load(scaler_path)
+                self.is_trained = True
+                logger.info("✅ Loaded PRE-TRAINED XGBoost model from disk!")
+            else:
+                logger.info("⏳ No trained model found. Generating synthetic weather & spatial data to train XGBoost...")
+                self._generate_data_and_train(model_path, scaler_path)
+        except Exception as e:
+            logger.error(f"Error loading/training XGBoost model: {e}")
+
+    def _generate_data_and_train(self, model_path: str, scaler_path: str) -> None:
+        """Generates realistic synthetic data using physics rules, then trains ML model on it."""
+        os.makedirs(os.path.dirname(model_path), exist_ok=True)
+        np.random.seed(42)
+        n_samples = 20000
+        
+        # Synthetic features resembling Riyadh climate (summer/day)
+        air_t = np.random.uniform(25, 48, n_samples)
+        hum = np.random.uniform(5, 45, n_samples)
+        wind = np.random.uniform(0, 35, n_samples)
+        dir_rad = np.random.uniform(100, 950, n_samples)
+        dif_rad = np.random.uniform(20, 200, n_samples)
+        shade = np.random.uniform(0, 1, n_samples)
+        surface = np.random.uniform(0.6, 1.0, n_samples)
+        alt = np.random.uniform(10, 85, n_samples)
+        hour = np.random.randint(6, 18, n_samples)
+        lst = air_t + (dir_rad / 150) * surface - (shade * 7.0)
+        
+        X = pd.DataFrame({
+            "air_temperature_c": air_t,
+            "relative_humidity_pct": hum,
+            "wind_speed_kmh": wind,
+            "direct_radiation_wm2": dir_rad,
+            "diffuse_radiation_wm2": dif_rad,
+            "shade_fraction": shade,
+            "surface_heat_factor": surface,
+            "solar_altitude_deg": alt,
+            "hour_of_day": hour,
+            "lst_estimate_c": lst,
+        })
+        
+        # Generate target values based on heuristic + random noise (to force it to generalize)
+        y = np.zeros(n_samples)
+        for i in range(n_samples):
+            y[i] = self.heuristic_score(
+                air_t[i], hum[i], wind[i], dir_rad[i], dif_rad[i], shade[i], surface[i]
+            )
+        y += np.random.normal(0, 2.0, n_samples) # Add noise
+        y = np.clip(y, 0, 60)
+        
+        self.fit(X, y)
+        
+        # Save artifacts
+        joblib.dump(self.model, model_path)
+        joblib.dump(self.scaler, scaler_path)
+        
+        # Save the dataset to a CSV file so it can be viewed
+        dataset_path = os.path.join(os.path.dirname(model_path), 'training_dataset_20000.csv')
+        df_save = X.copy()
+        df_save['target_heat_score'] = y
+        df_save.to_csv(dataset_path, index=False)
+        
+        logger.info(f"✅ XGBoost explicitly trained on {n_samples} samples and saved successfully!")
 
     def _init_model(self) -> None:
         """Initialize the underlying sklearn/xgboost estimator."""
@@ -201,6 +276,26 @@ class HeatExposureModel:
 
         # Scale to meaningful range (0-50+, mimicking WBGT-like scale)
         return np.array(score * 55)
+
+    @staticmethod
+    def heuristic_score(
+        air_temperature_c: float, relative_humidity_pct: float,
+        wind_speed_kmh: float, direct_radiation_wm2: float,
+        diffuse_radiation_wm2: float, shade_fraction: float,
+        surface_heat_factor: float,
+    ) -> float:
+        """Fast scalar form of the fallback model for graph construction."""
+        temp_norm = min(1.0, max(0.0, (air_temperature_c - 20.0) / 35.0))
+        humidity_norm = min(1.0, max(0.0, relative_humidity_pct / 100.0))
+        radiation_norm = min(1.0, max(0.0, (direct_radiation_wm2 + diffuse_radiation_wm2) / 1000.0))
+        score = (
+            0.35 * temp_norm
+            + 0.15 * humidity_norm
+            + 0.20 * radiation_norm
+            + 0.15 * surface_heat_factor
+            + 0.15 * (1.0 - shade_fraction)
+        ) / (1.0 + 0.03 * wind_speed_kmh)
+        return score * 55.0
 
     def feature_importance(self) -> pd.Series | None:
         """Return feature importances if model is trained."""

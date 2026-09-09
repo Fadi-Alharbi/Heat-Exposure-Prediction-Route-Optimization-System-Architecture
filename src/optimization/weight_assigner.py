@@ -73,7 +73,7 @@ class WeightAssigner:
         The heat exposure is cumulative: score × duration.
         """
         cumulative_heat = heat_exposure_score * segment_duration_min
-        return self.alpha * travel_time_s + self.beta * cumulative_heat
+        return self.alpha * (travel_time_s / 60.0) + self.beta * (cumulative_heat / 50.0)
 
     def update_graph_weights(
         self,
@@ -95,7 +95,7 @@ class WeightAssigner:
         for u, v, key, data in graph.edges(keys=True, data=True):
             time_s = data.get("travel_time_s", 0)
             cum_heat = data.get("cumulative_heat_exposure", 0)
-            data["combined_cost"] = a * time_s + b * cum_heat
+            data["combined_cost"] = a * (time_s / 60.0) + b * (cum_heat / 50.0)
 
         logger.info("Updated graph weights: α={a:.2f}, β={b:.2f}", a=a, b=b)
         return graph
