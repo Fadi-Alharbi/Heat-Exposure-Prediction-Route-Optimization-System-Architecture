@@ -188,7 +188,7 @@ def main():
         import folium
         from streamlit_folium import st_folium
 
-        m_interactive = folium.Map(location=[center_lat, center_lon], zoom_start=15, tiles="CartoDB dark_matter")
+        m_interactive = folium.Map(location=[center_lat, center_lon], zoom_start=15, tiles="OpenStreetMap")
         
         if st.session_state.origin:
             folium.Marker(
@@ -298,7 +298,7 @@ def main():
                         st.error("Could not find a valid path. Try adjusting points closer to roads.")
                     else:
                         st.markdown("### 🗺️ Proposed Routes")
-                        m_final = folium.Map(location=[center_lat, center_lon], zoom_start=15, tiles="CartoDB dark_matter")
+                        m_final = folium.Map(location=[center_lat, center_lon], zoom_start=15, tiles="OpenStreetMap")
                         
                         colors = {"Fastest": "#FF5252", "Coolest": "#4CAF50", "Balanced": "#FF9800"}
                         
