@@ -3,230 +3,432 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🌡️ Heat Route Optimizer — West Riyadh</title>
-    <meta name="description" content="Interactive heat-aware route optimization system for safer outdoor navigation in hot climates">
+    <title>🌡️ Heat Route Optimizer — Riyadh</title>
+    <meta name="description" content="AI-powered heat-aware route optimization using XGBoost, solar geometry, and building shadow analysis for safer outdoor navigation in Riyadh.">
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
 
     <style>
         :root {
-            --bg-primary: #0a0e1a;
-            --bg-secondary: #111827;
-            --bg-card: #1a2036;
-            --bg-card-hover: #1f2848;
-            --border: #2a3458;
-            --text-primary: #f0f4ff;
-            --text-secondary: #94a3c0;
-            --text-muted: #5e6d8a;
-            --accent-orange: #ff6b35;
-            --accent-blue: #3b82f6;
+            --bg-primary: #06090f;
+            --bg-secondary: #0c1220;
+            --bg-card: #131b2e;
+            --bg-card-hover: #1a2540;
+            --bg-glass: rgba(12, 18, 32, 0.85);
+            --border: #1e2d4a;
+            --border-active: #3b5998;
+            --text-primary: #eaf0ff;
+            --text-secondary: #8899b8;
+            --text-muted: #4e5f80;
+            --accent-fire: #ff6b35;
+            --accent-fire-glow: rgba(255, 107, 53, 0.25);
+            --accent-blue: #4f8cff;
             --accent-green: #00e676;
+            --accent-green-glow: rgba(0, 230, 118, 0.2);
             --accent-red: #ff5252;
+            --accent-red-glow: rgba(255, 82, 82, 0.2);
             --accent-yellow: #ffd740;
-            --gradient-hero: linear-gradient(135deg, #ff6b35 0%, #ff9800 50%, #ffd740 100%);
-            --shadow-lg: 0 20px 60px rgba(0,0,0,0.4);
-            --shadow-card: 0 4px 24px rgba(0,0,0,0.3);
-            --radius: 16px;
+            --accent-cyan: #00d4ff;
+            --gradient-hero: linear-gradient(135deg, #ff6b35 0%, #ff9800 40%, #ffd740 100%);
+            --gradient-cool: linear-gradient(135deg, #00e676 0%, #00d4ff 100%);
+            --gradient-glass: linear-gradient(135deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.01) 100%);
+            --shadow-glow: 0 0 40px rgba(255, 107, 53, 0.15);
+            --shadow-card: 0 8px 32px rgba(0,0,0,0.4);
+            --radius: 14px;
             --radius-sm: 10px;
+            --radius-xs: 7px;
+            --transition: 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
-            font-family: 'Inter', sans-serif;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
             background: var(--bg-primary);
             color: var(--text-primary);
-            overflow-x: hidden;
-            min-height: 100vh;
+            overflow: hidden;
+            height: 100vh;
         }
 
-        /* ── Header ───────────────────────────────── */
+        /* ── Scrollbar ──────────────────────────── */
+        ::-webkit-scrollbar { width: 5px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+        /* ── Header ─────────────────────────────── */
         .header {
-            background: linear-gradient(180deg, rgba(10,14,26,0.95) 0%, rgba(10,14,26,0.8) 100%);
-            backdrop-filter: blur(20px);
-            border-bottom: 1px solid var(--border);
-            padding: 12px 24px;
+            background: linear-gradient(180deg, rgba(6,9,15,0.97) 0%, rgba(6,9,15,0.85) 100%);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border-bottom: 1px solid rgba(30,45,74,0.6);
+            padding: 10px 20px;
             position: fixed;
             top: 0; left: 0; right: 0;
             z-index: 1000;
             display: flex;
             align-items: center;
             justify-content: space-between;
+            height: 52px;
         }
 
-        .header-title {
+        .header-brand {
             display: flex;
             align-items: center;
             gap: 12px;
         }
 
-        .header-title .logo { font-size: 28px; filter: drop-shadow(0 0 8px rgba(255,107,53,0.5)); }
+        .header-logo {
+            width: 34px; height: 34px;
+            background: var(--gradient-hero);
+            border-radius: 10px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 18px;
+            box-shadow: var(--shadow-glow);
+        }
 
-        .header-title h1 {
-            font-size: 1.15rem;
-            font-weight: 700;
+        .header-brand h1 {
+            font-size: 1.05rem;
+            font-weight: 800;
             background: var(--gradient-hero);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
+            letter-spacing: -0.3px;
         }
 
-        .header-subtitle { font-size: 0.7rem; color: var(--text-muted); font-weight: 400; }
-
-        .header-status {
-            display: flex; align-items: center; gap: 8px;
-            font-size: 0.8rem; color: var(--text-secondary);
+        .header-subtitle {
+            font-size: 0.65rem;
+            color: var(--text-muted);
+            font-weight: 400;
+            margin-top: -2px;
         }
 
-        .status-dot {
-            width: 8px; height: 8px; border-radius: 50%;
-            background: var(--accent-green);
-            animation: pulse 2s infinite;
+        .header-badges {
+            display: flex;
+            align-items: center;
+            gap: 12px;
         }
 
-        @keyframes pulse {
-            0%,100% { opacity:1; box-shadow: 0 0 0 0 rgba(0,230,118,0.4); }
-            50% { opacity:0.8; box-shadow: 0 0 0 6px rgba(0,230,118,0); }
+        .badge {
+            display: flex; align-items: center; gap: 6px;
+            font-size: 0.7rem; color: var(--text-secondary);
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 4px 12px 4px 8px;
         }
 
-        /* ── Layout ───────────────────────────────── */
-        .main-layout { display: flex; height: 100vh; padding-top: 56px; }
+        .badge-dot {
+            width: 7px; height: 7px; border-radius: 50%;
+            animation: blink 2s infinite;
+        }
 
-        /* ── Sidebar ──────────────────────────────── */
+        .badge-dot.live { background: var(--accent-green); }
+        .badge-dot.ml { background: var(--accent-cyan); }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; box-shadow: 0 0 0 0 currentColor; }
+            50% { opacity: 0.7; box-shadow: 0 0 6px currentColor; }
+        }
+
+        /* ── Layout ─────────────────────────────── */
+        .main-layout {
+            display: flex;
+            height: 100vh;
+            padding-top: 52px;
+        }
+
+        /* ── Sidebar ────────────────────────────── */
         .sidebar {
-            width: 380px; min-width: 380px;
+            width: 370px; min-width: 370px;
             background: var(--bg-secondary);
             border-right: 1px solid var(--border);
             overflow-y: auto;
             display: flex; flex-direction: column;
-            scrollbar-width: thin; scrollbar-color: var(--border) transparent;
         }
 
-        .sidebar::-webkit-scrollbar { width: 6px; }
-        .sidebar::-webkit-scrollbar-track { background: transparent; }
-        .sidebar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-
-        .sidebar-section { padding: 18px 20px; border-bottom: 1px solid var(--border); }
-
-        .section-title {
-            font-size: 0.78rem; font-weight: 700; color: var(--text-secondary);
-            text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 14px;
-            display: flex; align-items: center; gap: 8px;
+        .sidebar-section {
+            padding: 16px 18px;
+            border-bottom: 1px solid rgba(30,45,74,0.5);
         }
 
-        .section-title .icon { font-size: 1rem; }
+        .section-header {
+            font-size: 0.7rem;
+            font-weight: 700;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 7px;
+        }
 
-        /* ── Point Cards ──────────────────────────── */
+        .section-header .sh-icon {
+            font-size: 0.85rem;
+        }
+
+        /* ── Point Cards ────────────────────────── */
         .point-card {
-            background: var(--bg-card); border: 1px solid var(--border);
-            border-radius: var(--radius-sm); padding: 12px 14px; margin-bottom: 8px;
-            display: flex; align-items: center; gap: 12px;
-            transition: all 0.25s ease; cursor: pointer;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 11px 13px;
+            margin-bottom: 7px;
+            display: flex;
+            align-items: center;
+            gap: 11px;
+            cursor: pointer;
+            transition: all var(--transition);
+            position: relative;
+            overflow: hidden;
         }
 
-        .point-card:hover { background: var(--bg-card-hover); border-color: var(--accent-blue); }
-        .point-card.active { border-color: var(--accent-orange); box-shadow: 0 0 0 2px rgba(255,107,53,0.2); }
-        .point-card.set { border-color: var(--accent-green); }
+        .point-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; bottom: 0;
+            width: 3px;
+            border-radius: 3px;
+            transition: all var(--transition);
+        }
 
-        .point-dot {
-            width: 34px; height: 34px; border-radius: 50%;
+        .point-card:hover {
+            background: var(--bg-card-hover);
+            transform: translateX(2px);
+        }
+
+        .point-card.active::before { background: var(--accent-fire); }
+        .point-card.active { border-color: var(--accent-fire); box-shadow: inset 0 0 20px var(--accent-fire-glow); }
+
+        .point-card.set::before { background: var(--accent-green); }
+        .point-card.set { border-color: rgba(0,230,118,0.3); }
+
+        .point-icon {
+            width: 36px; height: 36px;
+            border-radius: 10px;
             display: flex; align-items: center; justify-content: center;
-            font-size: 15px; flex-shrink: 0;
+            font-size: 16px; flex-shrink: 0;
         }
 
-        .point-dot.origin { background: rgba(0,230,118,0.15); border: 2px solid var(--accent-green); }
-        .point-dot.dest { background: rgba(255,82,82,0.15); border: 2px solid var(--accent-red); }
-
-        .point-info { flex: 1; }
-        .point-label { font-size: 0.82rem; font-weight: 600; }
-        .point-coords { font-size: 0.72rem; color: var(--text-muted); font-family: 'Inter', monospace; }
-
-        /* ── Time Controls ────────────────────────── */
-        .time-control {
-            background: var(--bg-card); border: 1px solid var(--border);
-            border-radius: var(--radius-sm); padding: 14px;
+        .point-icon.origin {
+            background: rgba(0,230,118,0.1);
+            border: 1.5px solid rgba(0,230,118,0.4);
         }
 
-        .time-row { display: flex; gap: 10px; margin-bottom: 10px; }
-        .time-field { flex: 1; }
-
-        .time-field label {
-            display: block; font-size: 0.72rem; color: var(--text-secondary);
-            margin-bottom: 5px; font-weight: 500;
+        .point-icon.dest {
+            background: rgba(255,82,82,0.1);
+            border: 1.5px solid rgba(255,82,82,0.4);
         }
 
-        .time-field input, .time-field select {
-            width: 100%; padding: 9px 10px;
-            background: var(--bg-primary); border: 1px solid var(--border);
-            border-radius: 8px; color: var(--text-primary);
-            font-size: 0.85rem; font-family: 'Inter', sans-serif;
-            outline: none; transition: border-color 0.2s;
+        .point-info { flex: 1; min-width: 0; }
+        .point-label { font-size: 0.8rem; font-weight: 600; }
+        .point-coords {
+            font-size: 0.68rem;
+            color: var(--text-muted);
+            font-family: 'Inter', monospace;
+            margin-top: 1px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
-        .time-field input:focus { border-color: var(--accent-orange); }
-
-        .speed-control { margin-top: 10px; }
-
-        .speed-header {
-            display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;
+        /* ── Time Controls ──────────────────────── */
+        .controls-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
         }
 
-        .speed-value { font-size: 0.82rem; font-weight: 700; color: var(--accent-orange); }
+        .ctrl-field {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .ctrl-field.full { grid-column: 1 / -1; }
+
+        .ctrl-label {
+            font-size: 0.68rem;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .ctrl-input {
+            width: 100%;
+            padding: 9px 11px;
+            background: var(--bg-primary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-xs);
+            color: var(--text-primary);
+            font-size: 0.82rem;
+            font-family: 'Inter', sans-serif;
+            outline: none;
+            transition: border-color var(--transition);
+        }
+
+        .ctrl-input:focus { border-color: var(--accent-fire); }
+
+        .speed-display {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .speed-value {
+            font-size: 0.85rem;
+            font-weight: 800;
+            background: var(--gradient-hero);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
 
         input[type="range"] {
-            -webkit-appearance: none; width: 100%; height: 6px;
-            background: var(--bg-primary); border-radius: 3px; outline: none;
+            -webkit-appearance: none;
+            width: 100%;
+            height: 5px;
+            background: linear-gradient(90deg, var(--accent-green) 0%, var(--accent-fire) 50%, var(--accent-red) 100%);
+            border-radius: 3px;
+            outline: none;
+            opacity: 0.7;
+            transition: opacity 0.2s;
         }
+
+        input[type="range"]:hover { opacity: 1; }
 
         input[type="range"]::-webkit-slider-thumb {
-            -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%;
-            background: var(--accent-orange); cursor: pointer;
-            box-shadow: 0 0 8px rgba(255,107,53,0.4);
+            -webkit-appearance: none;
+            width: 16px; height: 16px;
+            border-radius: 50%;
+            background: #fff;
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(0,0,0,0.4);
         }
 
-        /* ── Buttons ──────────────────────────────── */
-        .btn-analyze {
-            width: 100%; padding: 13px; border: none; border-radius: var(--radius-sm);
-            font-size: 0.95rem; font-weight: 700; font-family: 'Inter', sans-serif;
-            cursor: pointer; transition: all 0.3s ease;
-            display: flex; align-items: center; justify-content: center; gap: 8px;
+        .speed-labels {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.58rem;
+            color: var(--text-muted);
+            margin-top: 4px;
         }
 
-        .btn-analyze.primary { background: var(--gradient-hero); color: #fff; }
-        .btn-analyze.primary:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(255,107,53,0.35); }
-        .btn-analyze.primary:disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: none; }
-
-        .btn-reset {
-            width: 100%; padding: 9px; border: 1px solid var(--border); border-radius: var(--radius-sm);
-            background: transparent; color: var(--text-secondary); font-size: 0.8rem;
-            font-family: 'Inter', sans-serif; cursor: pointer; margin-top: 6px; transition: all 0.2s;
+        /* ── Action Buttons ─────────────────────── */
+        .btn-primary {
+            width: 100%;
+            padding: 13px;
+            border: none;
+            border-radius: var(--radius-sm);
+            font-size: 0.9rem;
+            font-weight: 700;
+            font-family: 'Inter', sans-serif;
+            cursor: pointer;
+            transition: all var(--transition);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            background: var(--gradient-hero);
+            color: #fff;
+            letter-spacing: 0.2px;
+            position: relative;
+            overflow: hidden;
         }
 
-        .btn-reset:hover { border-color: var(--accent-red); color: var(--accent-red); }
-
-        /* ── Weather ──────────────────────────────── */
-        .weather-strip { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
-
-        .weather-item {
-            background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px;
-            padding: 8px 10px; display: flex; align-items: center; gap: 8px;
+        .btn-primary::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+            transform: translateX(-100%);
+            transition: transform 0.6s;
         }
 
-        .weather-item .wi-icon { font-size: 1.1rem; }
-        .weather-item .wi-val { font-size: 0.88rem; font-weight: 700; }
-        .weather-item .wi-label { font-size: 0.65rem; color: var(--text-muted); }
+        .btn-primary:hover::after { transform: translateX(100%); }
+        .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 8px 30px var(--accent-fire-glow); }
+        .btn-primary:disabled { opacity: 0.35; cursor: not-allowed; transform: none; box-shadow: none; }
+        .btn-primary:disabled::after { display: none; }
 
-        /* ── Route Cards ──────────────────────────── */
+        .btn-secondary {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-xs);
+            background: transparent;
+            color: var(--text-muted);
+            font-size: 0.72rem;
+            font-family: 'Inter', sans-serif;
+            cursor: pointer;
+            margin-top: 6px;
+            transition: all var(--transition);
+        }
+
+        .btn-secondary:hover { border-color: var(--accent-red); color: var(--accent-red); }
+
+        /* ── Info Strips ────────────────────────── */
+        .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px;
+        }
+
+        .info-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-xs);
+            padding: 8px 10px;
+            display: flex;
+            align-items: center;
+            gap: 9px;
+            transition: all var(--transition);
+        }
+
+        .info-card:hover { border-color: var(--border-active); }
+
+        .info-icon { font-size: 1.1rem; flex-shrink: 0; }
+        .info-val { font-size: 0.85rem; font-weight: 700; }
+        .info-lbl { font-size: 0.6rem; color: var(--text-muted); }
+
+        .solar-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 5px;
+        }
+
+        .solar-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-xs);
+            padding: 7px 5px;
+            text-align: center;
+            transition: all var(--transition);
+        }
+
+        .solar-card:hover { border-color: var(--border-active); }
+        .solar-icon { font-size: 1rem; margin-bottom: 2px; }
+        .solar-val { font-size: 0.78rem; font-weight: 700; }
+        .solar-lbl { font-size: 0.55rem; color: var(--text-muted); }
+
+        /* ── Route Cards ────────────────────────── */
         .route-card {
-            background: var(--bg-card); border: 1px solid var(--border);
-            border-radius: var(--radius); padding: 14px; margin-bottom: 10px;
-            cursor: pointer; transition: all 0.3s ease; position: relative; overflow: hidden;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 13px 14px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            transition: all var(--transition);
+            position: relative;
+            overflow: hidden;
         }
 
         .route-card::before {
-            content: ''; position: absolute; top: 0; left: 0;
+            content: '';
+            position: absolute;
+            top: 0; left: 0;
             width: 4px; height: 100%;
         }
 
@@ -234,96 +436,199 @@
         .route-card.coolest::before { background: var(--accent-green); }
         .route-card.balanced::before { background: var(--accent-yellow); }
 
-        .route-card:hover { background: var(--bg-card-hover); transform: translateX(4px); }
+        .route-card:hover {
+            background: var(--bg-card-hover);
+            transform: translateX(3px);
+            border-color: var(--border-active);
+        }
 
         .route-card.recommended {
-            border-color: var(--accent-green); box-shadow: 0 0 20px rgba(0,230,118,0.1);
+            border-color: rgba(0,230,118,0.35);
+            box-shadow: 0 0 25px var(--accent-green-glow);
         }
 
-        .recommended-badge {
-            position: absolute; top: 8px; right: 8px;
-            background: var(--accent-green); color: #000;
-            font-size: 0.6rem; font-weight: 800; padding: 2px 8px;
-            border-radius: 4px; text-transform: uppercase; letter-spacing: 0.5px;
+        .rec-badge {
+            position: absolute;
+            top: 7px; right: 7px;
+            background: var(--accent-green);
+            color: #000;
+            font-size: 0.55rem;
+            font-weight: 800;
+            padding: 2px 8px;
+            border-radius: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
 
-        .route-header { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
-
-        .route-color-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
-
-        .route-name { font-size: 0.95rem; font-weight: 700; }
-
-        .route-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
-
-        .route-stat { text-align: center; }
-        .route-stat .value { font-size: 1rem; font-weight: 800; }
-        .route-stat .label { font-size: 0.6rem; color: var(--text-muted); margin-top: 2px; }
-        .route-stat.heat .value { color: var(--accent-red); }
-        .route-stat.time .value { color: var(--accent-blue); }
-        .route-stat.shade .value { color: var(--accent-green); }
-
-        /* ── Solar ────────────────────────────────── */
-        .solar-strip { display: flex; gap: 8px; }
-
-        .solar-item {
-            flex: 1; background: var(--bg-card); border: 1px solid var(--border);
-            border-radius: 8px; padding: 8px; text-align: center;
+        .route-head {
+            display: flex;
+            align-items: center;
+            gap: 9px;
+            margin-bottom: 10px;
         }
 
-        .solar-item .si-icon { font-size: 1.2rem; margin-bottom: 2px; }
-        .solar-item .si-val { font-size: 0.82rem; font-weight: 700; }
-        .solar-item .si-label { font-size: 0.6rem; color: var(--text-muted); }
+        .route-dot {
+            width: 11px; height: 11px;
+            border-radius: 50%;
+            flex-shrink: 0;
+            box-shadow: 0 0 8px currentColor;
+        }
 
-        /* ── Map ──────────────────────────────────── */
+        .route-name { font-size: 0.9rem; font-weight: 700; }
+
+        .route-metrics {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 5px;
+        }
+
+        .metric { text-align: center; }
+        .metric-val { font-size: 1rem; font-weight: 800; }
+        .metric-lbl { font-size: 0.55rem; color: var(--text-muted); margin-top: 1px; }
+
+        .route-dist {
+            margin-top: 7px;
+            font-size: 0.68rem;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        /* Heat exposure bar */
+        .heat-bar-wrap {
+            margin-top: 8px;
+            background: var(--bg-primary);
+            border-radius: 3px;
+            height: 5px;
+            overflow: hidden;
+        }
+
+        .heat-bar {
+            height: 100%;
+            border-radius: 3px;
+            transition: width 0.8s ease;
+        }
+
+        /* ── Map ────────────────────────────────── */
         .map-container { flex: 1; position: relative; }
         #map { width: 100%; height: 100%; }
 
-        .map-instructions {
-            position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
-            z-index: 800; background: rgba(10,14,26,0.92); backdrop-filter: blur(12px);
-            border: 1px solid var(--border); border-radius: var(--radius-sm);
-            padding: 8px 18px; font-size: 0.82rem; color: var(--text-primary);
-            display: flex; align-items: center; gap: 8px;
-            pointer-events: none; transition: opacity 0.5s;
+        .map-banner {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 800;
+            background: var(--bg-glass);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 8px 18px;
+            font-size: 0.78rem;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 9px;
+            pointer-events: none;
+            transition: all 0.5s ease;
+            white-space: nowrap;
         }
 
-        .map-instructions.hidden { opacity: 0; }
+        .map-banner.hidden { opacity: 0; transform: translateX(-50%) translateY(-20px); }
 
-        .step-num {
-            width: 22px; height: 22px; border-radius: 50%; background: var(--accent-orange);
-            color: #fff; display: flex; align-items: center; justify-content: center;
-            font-size: 0.7rem; font-weight: 800; flex-shrink: 0;
+        .step-badge {
+            width: 22px; height: 22px;
+            border-radius: 50%;
+            background: var(--accent-fire);
+            color: #fff;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 0.65rem; font-weight: 800;
+            flex-shrink: 0;
         }
 
-        /* ── Loading ──────────────────────────────── */
+        /* ── Loading ────────────────────────────── */
         .loading-overlay {
-            position: absolute; inset: 0; background: rgba(10,14,26,0.85);
-            backdrop-filter: blur(8px); display: flex; flex-direction: column;
-            align-items: center; justify-content: center; z-index: 900;
-            opacity: 0; pointer-events: none; transition: opacity 0.3s;
+            position: absolute; inset: 0;
+            background: rgba(6,9,15,0.88);
+            backdrop-filter: blur(10px);
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            z-index: 900;
+            opacity: 0; pointer-events: none;
+            transition: opacity 0.3s;
         }
 
         .loading-overlay.active { opacity: 1; pointer-events: all; }
 
-        .loading-spinner {
-            width: 50px; height: 50px; border: 4px solid var(--border);
-            border-top-color: var(--accent-orange); border-radius: 50%;
-            animation: spin 0.8s linear infinite;
+        .loader {
+            width: 48px; height: 48px;
+            border: 3px solid var(--border);
+            border-top-color: var(--accent-fire);
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
         }
 
         @keyframes spin { to { transform: rotate(360deg); } }
 
-        .loading-text { margin-top: 14px; font-size: 0.9rem; color: var(--text-secondary); }
-        .loading-subtext { font-size: 0.75rem; color: var(--text-muted); margin-top: 4px; }
+        .loader-text {
+            margin-top: 14px;
+            font-size: 0.88rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+        }
 
-        /* ── Toast ────────────────────────────────── */
+        .loader-sub {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        /* ── Map Legend ──────────────────────────── */
+        .map-legend {
+            position: absolute;
+            bottom: 28px; right: 12px;
+            z-index: 800;
+            background: var(--bg-glass);
+            backdrop-filter: blur(16px);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 10px 14px;
+        }
+
+        .legend-h {
+            font-size: 0.62rem;
+            font-weight: 700;
+            color: var(--text-muted);
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .legend-row {
+            display: flex; align-items: center; gap: 8px;
+            font-size: 0.72rem;
+            color: var(--text-primary);
+            margin-bottom: 3px;
+        }
+
+        .legend-line { width: 22px; height: 4px; border-radius: 2px; }
+
+        /* ── Toast ──────────────────────────────── */
         .toast {
-            position: fixed; bottom: 20px; left: 50%;
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
             transform: translateX(-50%) translateY(100px);
-            background: var(--bg-card); border: 1px solid var(--border);
-            border-radius: var(--radius-sm); padding: 10px 20px;
-            font-size: 0.82rem; color: var(--text-primary); z-index: 2000;
-            box-shadow: var(--shadow-lg);
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 10px 20px;
+            font-size: 0.78rem;
+            color: var(--text-primary);
+            z-index: 2000;
+            box-shadow: var(--shadow-card);
             transition: transform 0.4s cubic-bezier(0.16,1,0.3,1);
             display: flex; align-items: center; gap: 8px;
         }
@@ -332,133 +637,174 @@
         .toast.error { border-color: var(--accent-red); }
         .toast.success { border-color: var(--accent-green); }
 
-        /* ── Legend ────────────────────────────────── */
-        .map-legend {
-            position: absolute; bottom: 20px; right: 12px; z-index: 800;
-            background: rgba(10,14,26,0.92); backdrop-filter: blur(12px);
-            border: 1px solid var(--border); border-radius: var(--radius-sm);
-            padding: 10px 14px;
-        }
-
-        .legend-title {
-            font-size: 0.7rem; font-weight: 700; color: var(--text-secondary);
-            margin-bottom: 6px; text-transform: uppercase; letter-spacing: 1px;
-        }
-
-        .legend-item {
-            display: flex; align-items: center; gap: 8px;
-            font-size: 0.75rem; color: var(--text-primary); margin-bottom: 3px;
-        }
-
-        .legend-line { width: 22px; height: 4px; border-radius: 2px; }
-
-        /* ── Responsive ───────────────────────────── */
+        /* ── Responsive ─────────────────────────── */
         @media (max-width: 900px) {
             .main-layout { flex-direction: column-reverse; }
-            .sidebar { width: 100%; min-width: unset; max-height: 50vh; border-right: none; border-top: 1px solid var(--border); }
+            .sidebar {
+                width: 100%; min-width: unset;
+                max-height: 50vh;
+                border-right: none;
+                border-top: 1px solid var(--border);
+            }
+            .header-badges { display: none; }
         }
 
-        .leaflet-container { background: var(--bg-primary) !important; }
-        .custom-origin-icon, .custom-dest-icon {
+        /* ── Leaflet overrides ──────────────────── */
+        .leaflet-container { background: #e8e0d8 !important; }
+
+        .leaflet-control-zoom a {
+            background: var(--bg-card) !important;
+            color: var(--text-primary) !important;
+            border-color: var(--border) !important;
+        }
+
+        .leaflet-control-zoom a:hover {
+            background: var(--bg-card-hover) !important;
+        }
+
+        .custom-marker {
             display: flex; align-items: center; justify-content: center;
-            font-size: 22px; filter: drop-shadow(0 2px 8px rgba(0,0,0,0.6));
+            font-size: 24px;
+            filter: drop-shadow(0 3px 8px rgba(0,0,0,0.6));
+        }
+
+        /* ── Boundary rect style ────────────────── */
+        .boundary-info {
+            position: absolute;
+            bottom: 28px; left: 12px;
+            z-index: 800;
+            background: var(--bg-glass);
+            backdrop-filter: blur(16px);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-xs);
+            padding: 6px 12px;
+            font-size: 0.62rem;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .boundary-dot {
+            width: 8px; height: 8px;
+            border: 1.5px solid var(--accent-cyan);
+            border-radius: 2px;
+            opacity: 0.7;
         }
     </style>
 </head>
 <body>
 
     <!-- Header -->
-    <header class="header">
-        <div class="header-title">
-            <span class="logo">🌡️</span>
+    <header class="header" id="appHeader">
+        <div class="header-brand">
+            <div class="header-logo">🌡️</div>
             <div>
                 <h1>Heat Route Optimizer</h1>
-                <div class="header-subtitle">Heat Exposure Prediction & Route Optimization — West Riyadh</div>
+                <div class="header-subtitle">AI-Powered Heat Exposure Prediction • Riyadh</div>
             </div>
         </div>
-        <div class="header-status">
-            <div class="status-dot"></div>
-            <span>Connected | Data Loaded</span>
+        <div class="header-badges">
+            <div class="badge">
+                <div class="badge-dot live"></div>
+                <span>Data Loaded</span>
+            </div>
+            <div class="badge">
+                <div class="badge-dot ml"></div>
+                <span>XGBoost Active</span>
+            </div>
         </div>
     </header>
 
     <!-- Main Layout -->
     <div class="main-layout">
         <!-- Sidebar -->
-        <aside class="sidebar">
-            <!-- Points -->
+        <aside class="sidebar" id="sidebar">
+            <!-- Location Picker -->
             <div class="sidebar-section">
-                <div class="section-title"><span class="icon">📍</span> Select Locations</div>
+                <div class="section-header">
+                    <span class="sh-icon">📍</span> Select Locations
+                </div>
 
-                <div class="point-card active" id="originCard" onclick="setActivePoint('origin')">
-                    <div class="point-dot origin">📍</div>
+                <div class="point-card" id="originCard" onclick="startPicking('origin')">
+                    <div class="point-icon origin">📍</div>
                     <div class="point-info">
                         <div class="point-label">Origin</div>
-                        <div class="point-coords" id="originCoords">Click on the map to select</div>
+                        <div class="point-coords" id="originCoords">Click this button, then click map</div>
                     </div>
                 </div>
 
-                <div class="point-card" id="destCard" onclick="setActivePoint('dest')">
-                    <div class="point-dot dest">🏁</div>
+                <div class="point-card" id="destCard" onclick="startPicking('dest')">
+                    <div class="point-icon dest">🏁</div>
                     <div class="point-info">
                         <div class="point-label">Destination</div>
-                        <div class="point-coords" id="destCoords">Click on the map to select</div>
+                        <div class="point-coords" id="destCoords">Click this button, then click map</div>
                     </div>
                 </div>
 
-                <button class="btn-reset" onclick="resetPoints()">🔄 Reset Points</button>
+                <button class="btn-secondary" onclick="resetPoints()">↺ Reset Points</button>
             </div>
 
-            <!-- Time & Speed -->
+            <!-- Trip Time & Speed -->
             <div class="sidebar-section">
-                <div class="section-title"><span class="icon">🕐</span> Trip Time & Speed</div>
-                <div class="time-control">
-                    <div class="time-row">
-                        <div class="time-field">
-                            <label>Date</label>
-                            <input type="date" id="tripDate" />
-                        </div>
-                        <div class="time-field">
-                            <label>Time</label>
-                            <input type="time" id="tripTime" value="12:00" />
-                        </div>
+                <div class="section-header">
+                    <span class="sh-icon">⏱️</span> Trip Settings
+                </div>
+                <div class="controls-grid">
+                    <div class="ctrl-field">
+                        <div class="ctrl-label">Date</div>
+                        <input type="date" class="ctrl-input" id="tripDate" />
                     </div>
-                    <div class="speed-control">
-                        <div class="speed-header">
-                            <label style="font-size:0.72rem;color:var(--text-secondary)">Speed</label>
+                    <div class="ctrl-field">
+                        <div class="ctrl-label">Time</div>
+                        <input type="time" class="ctrl-input" id="tripTime" value="12:00" />
+                    </div>
+                    <div class="ctrl-field full">
+                        <div class="speed-display">
+                            <span class="ctrl-label">Speed</span>
                             <span class="speed-value" id="speedVal">15 km/h</span>
                         </div>
                         <input type="range" id="speedSlider" min="3" max="60" value="15"
                                oninput="document.getElementById('speedVal').textContent=this.value+' km/h'" />
-                        <div style="display:flex;justify-content:space-between;font-size:0.62rem;color:var(--text-muted);margin-top:3px">
-                            <span>🚶 Walk</span><span>🚲 Bike</span><span>🚗 Drive</span>
+                        <div class="speed-labels">
+                            <span>🚶 3 km/h</span>
+                            <span>🚲 15 km/h</span>
+                            <span>🛵 30 km/h</span>
+                            <span>🚗 60 km/h</span>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Analyze Button -->
+            <!-- Action -->
             <div class="sidebar-section">
-                <button class="btn-analyze primary" id="analyzeBtn" onclick="analyzeRoutes()" disabled>
-                    <span>🔍</span><span>Analyze & Find Best Routes</span>
+                <button class="btn-primary" id="analyzeBtn" onclick="analyzeRoutes()" disabled>
+                    <span>🔬</span>
+                    <span>Analyze Routes (Dijkstra + XGBoost)</span>
                 </button>
             </div>
 
             <!-- Weather -->
             <div class="sidebar-section" id="weatherSection" style="display:none">
-                <div class="section-title"><span class="icon">🌤️</span> Current Weather</div>
-                <div class="weather-strip" id="weatherStrip"></div>
+                <div class="section-header">
+                    <span class="sh-icon">🌤️</span> Weather Conditions
+                </div>
+                <div class="info-grid" id="weatherGrid"></div>
             </div>
 
             <!-- Solar -->
             <div class="sidebar-section" id="solarSection" style="display:none">
-                <div class="section-title"><span class="icon">☀️</span> Sun Position</div>
-                <div class="solar-strip" id="solarStrip"></div>
+                <div class="section-header">
+                    <span class="sh-icon">☀️</span> Sun Position
+                </div>
+                <div class="solar-grid" id="solarGrid"></div>
             </div>
 
             <!-- Routes -->
             <div class="sidebar-section" id="routeResults" style="display:none">
-                <div class="section-title"><span class="icon">🛣️</span> Proposed Routes</div>
+                <div class="section-header">
+                    <span class="sh-icon">🛣️</span> Proposed Routes (Dijkstra)
+                </div>
                 <div id="routeCards"></div>
             </div>
         </aside>
@@ -467,22 +813,27 @@
         <div class="map-container">
             <div id="map"></div>
 
-            <div class="map-instructions" id="mapInstructions">
-                <span class="step-num" id="stepNum">1</span>
+            <div class="map-banner" id="mapBanner">
+                <span class="step-badge" id="stepBadge">1</span>
                 <span id="stepText">Click on the map to set your Origin point</span>
             </div>
 
             <div class="loading-overlay" id="loadingOverlay">
-                <div class="loading-spinner"></div>
-                <div class="loading-text">Calculating routes...</div>
-                <div class="loading-subtext">Analyzing sun position • building shadows • temperature</div>
+                <div class="loader"></div>
+                <div class="loader-text">Calculating optimal routes…</div>
+                <div class="loader-sub">Solar geometry • Building shadows • XGBoost prediction • Dijkstra search</div>
             </div>
 
             <div class="map-legend" id="mapLegend" style="display:none">
-                <div class="legend-title">Routes Legend</div>
-                <div class="legend-item"><div class="legend-line" style="background:#FF5252"></div><span>Fastest Route</span></div>
-                <div class="legend-item"><div class="legend-line" style="background:#00E676"></div><span>Coolest Route</span></div>
-                <div class="legend-item"><div class="legend-line" style="background:#FFD740"></div><span>Balanced Route</span></div>
+                <div class="legend-h">Routes</div>
+                <div class="legend-row"><div class="legend-line" style="background:#FF5252"></div><span>⚡ Fastest</span></div>
+                <div class="legend-row"><div class="legend-line" style="background:#00E676"></div><span>🌿 Coolest</span></div>
+                <div class="legend-row"><div class="legend-line" style="background:#FFD740"></div><span>⚖️ Balanced</span></div>
+            </div>
+
+            <div class="boundary-info">
+                <div class="boundary-dot"></div>
+                <span>BBBike GeoPackage • West Riyadh</span>
             </div>
         </div>
     </div>
@@ -496,272 +847,417 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <script>
-        // ── State ─────────────────────────────────────
+        // ══════════════════════════════════════════════
+        //  STATE
+        // ══════════════════════════════════════════════
         let map;
         let originMarker = null, destMarker = null;
         let originLatLng = null, destLatLng = null;
-        let activePoint = 'origin';
+        let pickingMode = null; // null | 'origin' | 'dest'
         let routeLayers = [];
+        let routeDataCache = []; // store route data for click popups
+        let roadNetworkLayer = null;
+        let boundaryRect = null;
+        let currentWeather = null; // cache weather for temperature display
 
-        // BBBike extract bounding box
         const BOUNDS = {
-            south: 24.5401, north: 24.6004,
-            west: 46.48, east: 46.5789
+            south: 24.685, north: 24.72,
+            west: 46.66, east: 46.695
         };
 
-        // ── Init ──────────────────────────────────────
+        // ══════════════════════════════════════════════
+        //  INIT
+        // ══════════════════════════════════════════════
         document.addEventListener('DOMContentLoaded', () => {
             const today = new Date().toISOString().split('T')[0];
             document.getElementById('tripDate').value = today;
             const now = new Date();
             document.getElementById('tripTime').value =
-                String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
-
+                String(now.getHours()).padStart(2, '0') + ':' +
+                String(now.getMinutes()).padStart(2, '0');
             initMap();
             loadRoadNetwork();
         });
 
+        // ══════════════════════════════════════════════
+        //  MAP INIT
+        // ══════════════════════════════════════════════
         function initMap() {
-            const center = [(BOUNDS.south + BOUNDS.north) / 2, (BOUNDS.west + BOUNDS.east) / 2];
-
+            const center = [
+                (BOUNDS.south + BOUNDS.north) / 2,
+                (BOUNDS.west + BOUNDS.east) / 2
+            ];
             map = L.map('map', {
                 center: center,
                 zoom: 14,
                 zoomControl: false,
                 maxBounds: [
-                    [BOUNDS.south - 0.01, BOUNDS.west - 0.01],
-                    [BOUNDS.north + 0.01, BOUNDS.east + 0.01]
+                    [BOUNDS.south - 0.02, BOUNDS.west - 0.02],
+                    [BOUNDS.north + 0.02, BOUNDS.east + 0.02]
                 ],
                 maxBoundsViscosity: 0.9,
             });
-
-            // No external basemap: the visible road layer comes only from
-            // the bundled BBBike GeoPackage through /api/road-network.
-
+            L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+                maxZoom: 19,
+            }).addTo(map);
             L.control.zoom({ position: 'topright' }).addTo(map);
-
-            // Fit to BBBike bounding box
             map.fitBounds([[BOUNDS.south, BOUNDS.west], [BOUNDS.north, BOUNDS.east]]);
-
+            boundaryRect = L.rectangle(
+                [[BOUNDS.south, BOUNDS.west], [BOUNDS.north, BOUNDS.east]],
+                { color: '#00d4ff', weight: 1.5, fillColor: '#00d4ff', fillOpacity: 0.03, dashArray: '6 4', interactive: false }
+            ).addTo(map);
             map.on('click', onMapClick);
         }
 
+        // ══════════════════════════════════════════════
+        //  ROAD NETWORK
+        // ══════════════════════════════════════════════
         async function loadRoadNetwork() {
             try {
                 const resp = await fetch('/api/road-network');
                 const geojson = await resp.json();
-
-                L.geoJSON(geojson, {
-                    style: () => ({ color: '#5080ff', weight: 1.2, opacity: 0.35 }),
+                roadNetworkLayer = L.geoJSON(geojson, {
+                    style: (feature) => {
+                        const highway = feature.properties.highway || '';
+                        let color = '#2255aa', weight = 1.5, opacity = 0.45;
+                        if (['motorway', 'trunk', 'primary'].includes(highway)) { color = '#1a44aa'; weight = 2.5; opacity = 0.6; }
+                        else if (['secondary'].includes(highway)) { color = '#2255bb'; weight = 2; opacity = 0.5; }
+                        else if (['tertiary'].includes(highway)) { color = '#3366cc'; weight = 1.5; opacity = 0.45; }
+                        else if (['residential', 'living_street'].includes(highway)) { color = '#4477dd'; weight = 1; opacity = 0.35; }
+                        return { color, weight, opacity };
+                    },
                     onEachFeature: (feature, layer) => {
                         const name = feature.properties.name;
-                        if (name) layer.bindTooltip(name, { permanent: false, direction: 'top' });
+                        const highway = feature.properties.highway;
+                        if (name) {
+                            layer.bindTooltip(`<b>${name}</b><br><span style="opacity:0.7">${highway}</span>`, { permanent: false, direction: 'top', className: 'road-tooltip' });
+                        }
                     }
                 }).addTo(map);
+                showToast('✅', 'Road network loaded successfully');
             } catch (e) {
                 console.error('Failed to load road network:', e);
+                showToast('⚠️', 'Road network loading failed', true);
             }
         }
 
-        // ── Map Click ─────────────────────────────────
+        // ══════════════════════════════════════════════
+        //  PICKING MODE (origin/dest buttons)
+        // ══════════════════════════════════════════════
+        function startPicking(type) {
+            pickingMode = type;
+            document.getElementById('originCard').classList.toggle('active', type === 'origin');
+            document.getElementById('destCard').classList.toggle('active', type === 'dest');
+            const banner = document.getElementById('mapBanner');
+            document.getElementById('stepBadge').textContent = type === 'origin' ? '1' : '2';
+            document.getElementById('stepText').textContent = type === 'origin'
+                ? 'Click on the map to set your Origin point'
+                : 'Click on the map to set your Destination point';
+            banner.classList.remove('hidden');
+            showToast('📌', type === 'origin' ? 'Click on the map to set Origin' : 'Click on the map to set Destination');
+        }
+
+        // ══════════════════════════════════════════════
+        //  MAP CLICK
+        // ══════════════════════════════════════════════
         function onMapClick(e) {
+            // Only set points if picking mode is active
+            if (!pickingMode) return;
+
             const { lat, lng } = e.latlng;
-            if (activePoint === 'origin') setOrigin(lat, lng);
-            else setDestination(lat, lng);
+            if (lat < BOUNDS.south || lat > BOUNDS.north || lng < BOUNDS.west || lng > BOUNDS.east) {
+                showToast('⚠️', 'Please click within the boundary area', true);
+                return;
+            }
+            if (pickingMode === 'origin') {
+                setOrigin(lat, lng);
+            } else if (pickingMode === 'dest') {
+                setDestination(lat, lng);
+            }
         }
 
         function setOrigin(lat, lng) {
             originLatLng = { lat, lng };
             if (originMarker) map.removeLayer(originMarker);
             originMarker = L.marker([lat, lng], {
-                icon: L.divIcon({ html: '📍', className: 'custom-origin-icon', iconSize: [30,30], iconAnchor: [15,30] }),
+                icon: L.divIcon({ html: '📍', className: 'custom-marker', iconSize: [30, 30], iconAnchor: [15, 30] }),
                 draggable: true,
             }).addTo(map);
-            originMarker.on('dragend', e => { originLatLng = { lat: e.target.getLatLng().lat, lng: e.target.getLatLng().lng }; updateUI(); });
-
+            originMarker.on('dragend', e => {
+                const pos = e.target.getLatLng();
+                originLatLng = { lat: pos.lat, lng: pos.lng };
+                document.getElementById('originCoords').textContent = `${pos.lat.toFixed(5)}, ${pos.lng.toFixed(5)}`;
+                updateUI();
+            });
             document.getElementById('originCoords').textContent = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
             document.getElementById('originCard').classList.add('set');
             document.getElementById('originCard').classList.remove('active');
-            setActivePoint('dest');
+            pickingMode = null; // Stop picking
             updateUI();
-            showToast('✅', 'Origin set');
+            showToast('📍', 'Origin set! Now click \"Destination\" button to set destination');
         }
 
         function setDestination(lat, lng) {
             destLatLng = { lat, lng };
             if (destMarker) map.removeLayer(destMarker);
             destMarker = L.marker([lat, lng], {
-                icon: L.divIcon({ html: '🏁', className: 'custom-dest-icon', iconSize: [30,30], iconAnchor: [15,30] }),
+                icon: L.divIcon({ html: '🏁', className: 'custom-marker', iconSize: [30, 30], iconAnchor: [15, 30] }),
                 draggable: true,
             }).addTo(map);
-            destMarker.on('dragend', e => { destLatLng = { lat: e.target.getLatLng().lat, lng: e.target.getLatLng().lng }; updateUI(); });
-
+            destMarker.on('dragend', e => {
+                const pos = e.target.getLatLng();
+                destLatLng = { lat: pos.lat, lng: pos.lng };
+                document.getElementById('destCoords').textContent = `${pos.lat.toFixed(5)}, ${pos.lng.toFixed(5)}`;
+                updateUI();
+            });
             document.getElementById('destCoords').textContent = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
             document.getElementById('destCard').classList.add('set');
+            document.getElementById('destCard').classList.remove('active');
+            pickingMode = null; // Stop picking
             updateUI();
-            showToast('✅', 'Destination set — You can now analyze routes');
-        }
-
-        function setActivePoint(type) {
-            activePoint = type;
-            document.getElementById('originCard').classList.toggle('active', type === 'origin');
-            document.getElementById('destCard').classList.toggle('active', type === 'dest');
-            const instrEl = document.getElementById('mapInstructions');
-            document.getElementById('stepNum').textContent = type === 'origin' ? '1' : '2';
-            document.getElementById('stepText').textContent = type === 'origin'
-                ? 'Click on the map to set your Origin point'
-                : 'Click on the map to set your Destination point';
-            instrEl.classList.remove('hidden');
+            showToast('🏁', 'Destination set — Ready to analyze!');
         }
 
         function updateUI() {
-            const ok = originLatLng && destLatLng;
-            document.getElementById('analyzeBtn').disabled = !ok;
-            if (ok) document.getElementById('mapInstructions').classList.add('hidden');
+            const ready = originLatLng && destLatLng;
+            document.getElementById('analyzeBtn').disabled = !ready;
+            if (ready && !pickingMode) {
+                document.getElementById('mapBanner').classList.add('hidden');
+            }
         }
 
         function resetPoints() {
             if (originMarker) { map.removeLayer(originMarker); originMarker = null; }
             if (destMarker) { map.removeLayer(destMarker); destMarker = null; }
-            originLatLng = null; destLatLng = null;
-            document.getElementById('originCoords').textContent = 'Click on the map to select';
-            document.getElementById('destCoords').textContent = 'Click on the map to select';
-            document.getElementById('originCard').classList.remove('set');
-            document.getElementById('destCard').classList.remove('set');
+            originLatLng = null;
+            destLatLng = null;
+            pickingMode = null;
+            currentWeather = null;
+            document.getElementById('originCoords').textContent = 'Click this button, then click map';
+            document.getElementById('destCoords').textContent = 'Click this button, then click map';
+            document.getElementById('originCard').classList.remove('set', 'active');
+            document.getElementById('destCard').classList.remove('set', 'active');
+            document.getElementById('mapBanner').classList.add('hidden');
             clearRoutes();
-            setActivePoint('origin');
             updateUI();
         }
 
         function clearRoutes() {
             routeLayers.forEach(l => map.removeLayer(l));
             routeLayers = [];
+            routeDataCache = [];
             document.getElementById('routeResults').style.display = 'none';
             document.getElementById('weatherSection').style.display = 'none';
             document.getElementById('solarSection').style.display = 'none';
             document.getElementById('mapLegend').style.display = 'none';
         }
 
-        // ── Analyze ───────────────────────────────────
+        // ══════════════════════════════════════════════
+        //  HEAT EXPOSURE → REALISTIC TEMPERATURE
+        // ══════════════════════════════════════════════
+        // The backend returns a heat_exposure_score on a 0-60 scale
+        // and cumulative = score * time_minutes (can be huge).
+        // We convert the avg_heat_exposure to a "felt temperature" in °C
+        // so the display makes physical sense for Riyadh (max ~60°C felt).
+        function heatScoreToTemp(avgHeatScore, airTempC) {
+            // Map the 0-55 heat score to a temperature offset
+            // Low score (shaded, windy) → near air temp
+            // High score (full sun, no wind) → air temp + up to 18°C
+            const offset = (avgHeatScore / 55) * 18;
+            return Math.round(airTempC + offset);
+        }
+
+        function getHeatLevel(avgScore) {
+            if (avgScore > 35) return { label: 'Extreme', color: 'var(--accent-red)', icon: '🔥' };
+            if (avgScore > 25) return { label: 'High', color: 'var(--accent-yellow)', icon: '🌡️' };
+            if (avgScore > 15) return { label: 'Moderate', color: 'var(--accent-blue)', icon: '☁️' };
+            return { label: 'Low', color: 'var(--accent-green)', icon: '🌿' };
+        }
+
+        // ══════════════════════════════════════════════
+        //  ANALYZE ROUTES
+        // ══════════════════════════════════════════════
         async function analyzeRoutes() {
             if (!originLatLng || !destLatLng) return;
+            pickingMode = null; // Disable picking during analysis
+            document.getElementById('originCard').classList.remove('active');
+            document.getElementById('destCard').classList.remove('active');
             document.getElementById('loadingOverlay').classList.add('active');
             clearRoutes();
-
             const timeParts = document.getElementById('tripTime').value.split(':');
-
             try {
                 const resp = await fetch('/api/find-routes', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        origin_lat: originLatLng.lat,
-                        origin_lon: originLatLng.lng,
-                        dest_lat: destLatLng.lat,
-                        dest_lon: destLatLng.lng,
+                        origin_lat: originLatLng.lat, origin_lon: originLatLng.lng,
+                        dest_lat: destLatLng.lat, dest_lon: destLatLng.lng,
                         trip_hour: parseInt(timeParts[0]),
                         trip_minute: parseInt(timeParts[1] || 0),
                         trip_date: document.getElementById('tripDate').value,
                         speed_kmh: parseInt(document.getElementById('speedSlider').value),
                     }),
                 });
-
                 const data = await resp.json();
-                if (!data.success) {
-                    showToast('❌', data.error || 'Error during calculation', true);
-                    return;
-                }
-
+                if (!data.success) { showToast('❌', data.error || 'Routing failed', true); return; }
+                currentWeather = data.weather;
                 displayRoutes(data);
                 displayWeather(data.weather);
                 displaySolar(data.solar);
-                showToast('✅', `Found ${data.routes.length} routes!`);
-
+                showToast('✅', `Found ${data.routes.length} optimized routes`);
             } catch (e) {
-                console.error('Route analysis failed:', e);
+                console.error('Route analysis error:', e);
                 showToast('❌', 'Server connection error', true);
             } finally {
                 document.getElementById('loadingOverlay').classList.remove('active');
             }
         }
 
-        // ── Display Routes ────────────────────────────
+        // ══════════════════════════════════════════════
+        //  DISPLAY ROUTES
+        // ══════════════════════════════════════════════
         function displayRoutes(data) {
             const routes = data.routes;
             if (!routes || routes.length === 0) return;
+            const airTemp = data.weather ? data.weather.temperature_c : 42;
 
             const cardsEl = document.getElementById('routeCards');
             cardsEl.innerHTML = '';
 
             const labelMap = { Fastest: '⚡ Fastest Route', Coolest: '🌿 Coolest Route', Balanced: '⚖️ Balanced Route' };
             const classMap = { Fastest: 'fastest', Coolest: 'coolest', Balanced: 'balanced' };
+            const descMap = { Fastest: 'Shortest travel time, ignores heat', Coolest: 'Minimum thermal stress path', Balanced: 'Best trade-off: time vs comfort' };
 
-            // Draw lines — recommended last (on top)
             const sorted = [...routes].sort((a, b) => a.is_recommended - b.is_recommended);
+            routeDataCache = sorted; // Cache for click popups
 
-            sorted.forEach(route => {
+            sorted.forEach((route, idx) => {
+                const feltTemp = heatScoreToTemp(route.avg_heat_exposure, airTemp);
+                const heatLevel = getHeatLevel(route.avg_heat_exposure);
+
+                // Draw route line on map
                 const line = L.polyline(route.coordinates, {
                     color: route.color,
-                    weight: route.is_recommended ? 7 : 4,
-                    opacity: route.is_recommended ? 0.95 : 0.7,
-                    dashArray: route.label === 'Balanced' ? '8 6' : null,
+                    weight: route.is_recommended ? 7 : 5,
+                    opacity: route.is_recommended ? 1 : 0.75,
+                    dashArray: route.label === 'Balanced' ? '10 6' : null,
+                    lineCap: 'round', lineJoin: 'round',
                 });
+
+                // Hover tooltip (brief)
                 line.bindTooltip(`
-                    <strong>${labelMap[route.label] || route.label}</strong><br>
-                    ⏱ ${route.total_time_min} min<br>
-                    📏 ${(route.total_distance_m/1000).toFixed(2)} km<br>
-                    🌡️ Heat Exp: ${route.cumulative_heat_exposure.toFixed(1)}<br>
-                    🌳 Shade: ${(route.avg_shade_fraction*100).toFixed(0)}%
+                    <div style="font-family:Inter,sans-serif;font-size:12px;">
+                        <strong>${labelMap[route.label] || route.label}</strong><br>
+                        🌡️ ${feltTemp}°C felt  •  🌳 ${(route.avg_shade_fraction*100).toFixed(0)}% shade<br>
+                        ⏱ ${route.total_time_min} min  •  📏 ${(route.total_distance_m/1000).toFixed(2)} km
+                    </div>
                 `, { sticky: true, direction: 'top' });
+
+                // Click popup (detailed)
+                line.on('click', (e) => {
+                    L.DomEvent.stopPropagation(e);
+                    const popupContent = `
+                        <div style="font-family:Inter,sans-serif;min-width:220px;">
+                            <h3 style="margin:0 0 8px;font-size:14px;color:${route.color}">${labelMap[route.label] || route.label}</h3>
+                            <table style="width:100%;font-size:12px;border-collapse:collapse;">
+                                <tr><td style="padding:3px 8px 3px 0;color:#888;">🌡️ Felt Temperature</td><td style="font-weight:700;">${feltTemp}°C</td></tr>
+                                <tr><td style="padding:3px 8px 3px 0;color:#888;">🌤️ Air Temperature</td><td style="font-weight:700;">${airTemp}°C</td></tr>
+                                <tr><td style="padding:3px 8px 3px 0;color:#888;">⏱️ Travel Time</td><td style="font-weight:700;">${route.total_time_min} min</td></tr>
+                                <tr><td style="padding:3px 8px 3px 0;color:#888;">📏 Distance</td><td style="font-weight:700;">${(route.total_distance_m/1000).toFixed(2)} km</td></tr>
+                                <tr><td style="padding:3px 8px 3px 0;color:#888;">🌳 Shade Coverage</td><td style="font-weight:700;">${(route.avg_shade_fraction*100).toFixed(0)}%</td></tr>
+                                <tr><td style="padding:3px 8px 3px 0;color:#888;">🔥 Heat Level</td><td style="font-weight:700;color:${heatLevel.color}">${heatLevel.icon} ${heatLevel.label}</td></tr>
+                                <tr><td style="padding:3px 8px 3px 0;color:#888;">📊 Heat Score</td><td style="font-weight:700;">${route.avg_heat_exposure.toFixed(1)} / 55</td></tr>
+                            </table>
+                            ${route.is_recommended ? '<div style="margin-top:8px;padding:4px 8px;background:#00e67622;border:1px solid #00e67655;border-radius:6px;font-size:11px;text-align:center;color:#00e676;">⭐ Recommended Route</div>' : ''}
+                        </div>
+                    `;
+                    L.popup({ maxWidth: 300 }).setLatLng(e.latlng).setContent(popupContent).openOn(map);
+                });
+
                 line.addTo(map);
                 routeLayers.push(line);
             });
 
+            // Fit bounds
             const allCoords = routes.flatMap(r => r.coordinates);
-            if (allCoords.length) map.fitBounds(L.latLngBounds(allCoords), { padding: [50, 50] });
+            if (allCoords.length) { map.fitBounds(L.latLngBounds(allCoords), { padding: [60, 60] }); }
 
-            // Build cards
+            // Build sidebar cards
             routes.forEach(route => {
-                const heatColor = route.cumulative_heat_exposure > 25 ? 'var(--accent-red)' :
-                                  route.cumulative_heat_exposure > 15 ? 'var(--accent-yellow)' : 'var(--accent-green)';
-                const card = document.createElement('div');
-                card.className = `route-card ${classMap[route.label]||''} ${route.is_recommended?'recommended':''}`;
-                card.innerHTML = `
-                    ${route.is_recommended ? '<div class="recommended-badge">⭐ RECOMMENDED</div>' : ''}
-                    <div class="route-header">
-                        <div class="route-color-dot" style="background:${route.color}"></div>
-                        <div class="route-name">${labelMap[route.label] || route.label}</div>
-                    </div>
-                    <div class="route-stats">
-                        <div class="route-stat time">
-                            <div class="value">${route.total_time_min}</div>
-                            <div class="label">Minutes ⏱️</div>
-                        </div>
-                        <div class="route-stat heat">
-                            <div class="value" style="color:${heatColor}">${route.cumulative_heat_exposure.toFixed(1)}</div>
-                            <div class="label">Heat Exp. 🌡️</div>
-                        </div>
-                        <div class="route-stat shade">
-                            <div class="value">${(route.avg_shade_fraction*100).toFixed(0)}%</div>
-                            <div class="label">Shade 🌳</div>
-                        </div>
-                    </div>
-                    <div style="margin-top:6px;font-size:0.72rem;color:var(--text-muted)">
-                        📏 ${(route.total_distance_m/1000).toFixed(2)} km
-                    </div>`;
+                const feltTemp = heatScoreToTemp(route.avg_heat_exposure, airTemp);
+                const heatLevel = getHeatLevel(route.avg_heat_exposure);
+                const maxScore = Math.max(...routes.map(r => r.avg_heat_exposure), 1);
+                const heatPct = Math.min(100, (route.avg_heat_exposure / maxScore) * 100);
 
+                const barGradient = route.avg_heat_exposure > 35
+                    ? 'linear-gradient(90deg, #ff5252, #ff1744)'
+                    : route.avg_heat_exposure > 25
+                        ? 'linear-gradient(90deg, #ffd740, #ff9800)'
+                        : route.avg_heat_exposure > 15
+                            ? 'linear-gradient(90deg, #4f8cff, #2255bb)'
+                            : 'linear-gradient(90deg, #00e676, #00c853)';
+
+                const card = document.createElement('div');
+                card.className = `route-card ${classMap[route.label] || ''} ${route.is_recommended ? 'recommended' : ''}`;
+                card.innerHTML = `
+                    ${route.is_recommended ? '<div class="rec-badge">⭐ RECOMMENDED</div>' : ''}
+                    <div class="route-head">
+                        <div class="route-dot" style="background:${route.color}; color:${route.color}"></div>
+                        <div>
+                            <div class="route-name">${labelMap[route.label] || route.label}</div>
+                            <div style="font-size:0.6rem; color:var(--text-muted); margin-top:1px">${descMap[route.label] || ''}</div>
+                        </div>
+                    </div>
+                    <div class="route-metrics">
+                        <div class="metric">
+                            <div class="metric-val" style="color:var(--accent-blue)">${route.total_time_min}</div>
+                            <div class="metric-lbl">Minutes ⏱️</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-val" style="color:${heatLevel.color}">${feltTemp}°C</div>
+                            <div class="metric-lbl">Felt Temp 🌡️</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-val" style="color:var(--accent-green)">${(route.avg_shade_fraction * 100).toFixed(0)}%</div>
+                            <div class="metric-lbl">Shade 🌳</div>
+                        </div>
+                    </div>
+                    <div class="heat-bar-wrap">
+                        <div class="heat-bar" style="width:${heatPct}%; background:${barGradient}"></div>
+                    </div>
+                    <div class="route-dist">
+                        📏 ${(route.total_distance_m / 1000).toFixed(2)} km
+                        &nbsp;•&nbsp;
+                        ${heatLevel.icon} Heat Level: ${heatLevel.label} (${route.avg_heat_exposure.toFixed(1)}/55)
+                    </div>
+                `;
+
+                // Hover highlight
                 card.addEventListener('mouseenter', () => {
                     const idx = sorted.findIndex(r => r.label === route.label);
-                    if (idx >= 0 && routeLayers[idx]) routeLayers[idx].setStyle({ weight: 10, opacity: 1 });
+                    if (idx >= 0 && routeLayers[idx]) { routeLayers[idx].setStyle({ weight: 10, opacity: 1 }); }
                 });
                 card.addEventListener('mouseleave', () => {
                     sorted.forEach((r, i) => {
-                        if (routeLayers[i]) routeLayers[i].setStyle({
-                            weight: r.is_recommended ? 7 : 4,
-                            opacity: r.is_recommended ? 0.95 : 0.7
-                        });
+                        if (routeLayers[i]) { routeLayers[i].setStyle({ weight: r.is_recommended ? 7 : 5, opacity: r.is_recommended ? 1 : 0.75 }); }
                     });
                 });
+
+                // Click card → zoom to route on map
+                card.addEventListener('click', () => {
+                    const idx = sorted.findIndex(r => r.label === route.label);
+                    if (idx >= 0 && routeLayers[idx]) {
+                        map.fitBounds(routeLayers[idx].getBounds(), { padding: [60, 60] });
+                        routeLayers[idx].setStyle({ weight: 10, opacity: 1 });
+                        setTimeout(() => {
+                            sorted.forEach((r, i) => {
+                                if (routeLayers[i]) { routeLayers[i].setStyle({ weight: r.is_recommended ? 7 : 5, opacity: r.is_recommended ? 1 : 0.75 }); }
+                            });
+                        }, 2000);
+                    }
+                });
+
                 cardsEl.appendChild(card);
             });
 
@@ -769,27 +1265,38 @@
             document.getElementById('mapLegend').style.display = 'block';
         }
 
+        // ══════════════════════════════════════════════
+        //  DISPLAY WEATHER
+        // ══════════════════════════════════════════════
         function displayWeather(w) {
             if (!w) return;
-            document.getElementById('weatherStrip').innerHTML = `
-                <div class="weather-item"><span class="wi-icon">🌡️</span><div><div class="wi-val">${w.temperature_c}°C</div><div class="wi-label">Temperature</div></div></div>
-                <div class="weather-item"><span class="wi-icon">💧</span><div><div class="wi-val">${w.humidity_pct}%</div><div class="wi-label">Humidity</div></div></div>
-                <div class="weather-item"><span class="wi-icon">💨</span><div><div class="wi-val">${w.wind_kmh} km/h</div><div class="wi-label">Wind</div></div></div>
-                <div class="weather-item"><span class="wi-icon">☀️</span><div><div class="wi-val">${Math.round(w.radiation_wm2)} W/m²</div><div class="wi-label">Radiation</div></div></div>`;
+            const tempColor = w.temperature_c > 40 ? 'var(--accent-red)' : w.temperature_c > 30 ? 'var(--accent-yellow)' : 'var(--accent-green)';
+            document.getElementById('weatherGrid').innerHTML = `
+                <div class="info-card"><span class="info-icon">🌡️</span><div><div class="info-val" style="color:${tempColor}">${w.temperature_c}°C</div><div class="info-lbl">Temperature</div></div></div>
+                <div class="info-card"><span class="info-icon">💧</span><div><div class="info-val">${w.humidity_pct}%</div><div class="info-lbl">Humidity</div></div></div>
+                <div class="info-card"><span class="info-icon">💨</span><div><div class="info-val">${w.wind_kmh} km/h</div><div class="info-lbl">Wind Speed</div></div></div>
+                <div class="info-card"><span class="info-icon">☀️</span><div><div class="info-val">${Math.round(w.radiation_wm2)} W/m²</div><div class="info-lbl">Solar Radiation</div></div></div>
+            `;
             document.getElementById('weatherSection').style.display = 'block';
         }
 
+        // ══════════════════════════════════════════════
+        //  DISPLAY SOLAR
+        // ══════════════════════════════════════════════
         function displaySolar(s) {
             if (!s) return;
-            document.getElementById('solarStrip').innerHTML = `
-                <div class="solar-item"><div class="si-icon">${s.is_daytime?'☀️':'🌙'}</div><div class="si-val">${s.altitude_deg}°</div><div class="si-label">Altitude</div></div>
-                <div class="solar-item"><div class="si-icon">🧭</div><div class="si-val">${s.azimuth_deg}°</div><div class="si-label">Azimuth</div></div>
-                <div class="solar-item"><div class="si-icon">🌅</div><div class="si-val">${s.sunrise}</div><div class="si-label">Sunrise</div></div>
-                <div class="solar-item"><div class="si-icon">🌇</div><div class="si-val">${s.sunset}</div><div class="si-label">Sunset</div></div>`;
+            document.getElementById('solarGrid').innerHTML = `
+                <div class="solar-card"><div class="solar-icon">${s.is_daytime ? '☀️' : '🌙'}</div><div class="solar-val">${s.altitude_deg}°</div><div class="solar-lbl">Altitude</div></div>
+                <div class="solar-card"><div class="solar-icon">🧭</div><div class="solar-val">${s.azimuth_deg}°</div><div class="solar-lbl">Azimuth</div></div>
+                <div class="solar-card"><div class="solar-icon">🌅</div><div class="solar-val">${s.sunrise}</div><div class="solar-lbl">Sunrise</div></div>
+                <div class="solar-card"><div class="solar-icon">🌇</div><div class="solar-val">${s.sunset}</div><div class="solar-lbl">Sunset</div></div>
+            `;
             document.getElementById('solarSection').style.display = 'block';
         }
 
-        // ── Toast ─────────────────────────────────────
+        // ══════════════════════════════════════════════
+        //  TOAST
+        // ══════════════════════════════════════════════
         function showToast(icon, text, isError = false) {
             const toast = document.getElementById('toast');
             document.getElementById('toastIcon').textContent = icon;

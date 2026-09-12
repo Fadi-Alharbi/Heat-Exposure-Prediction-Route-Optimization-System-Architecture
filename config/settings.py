@@ -39,9 +39,9 @@ class Settings(BaseSettings):
     # CDS API (optional, for ERA5)
     CDS_API_KEY: str = ""
 
-    # ── Default Location (Riyadh, Saudi Arabia) ─
-    DEFAULT_LATITUDE: float = 24.7136
-    DEFAULT_LONGITUDE: float = 46.6753
+    # ── Default Location (West Riyadh neighborhood) ─
+    DEFAULT_LATITUDE: float = 24.7025
+    DEFAULT_LONGITUDE: float = 46.6775
     DEFAULT_CITY: str = "Riyadh"
     DEFAULT_TIMEZONE: str = "Asia/Riyadh"
 

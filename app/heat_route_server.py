@@ -63,8 +63,8 @@ def to_native(obj):
 # ── Load map data once ───────────────────────────────────────────
 GPKG_PATH = os.path.join(
     PROJECT_ROOT,
-    "planet_46.48,24.5401_46.5789,24.6004-geopackage",
-    "planet_46.48,24.5401_46.5789,24.6004.gpkg",
+    "حي العليا",
+    "planet_46.66,24.685_46.695,24.72.gpkg",
 )
 
 print("⏳ Loading GeoPackage map data...")
@@ -81,12 +81,12 @@ print(f"✅ Connected component: {BASE_GRAPH.number_of_nodes()} nodes, {BASE_GRA
 
 # Bounding box from the BBBike extract
 MAP_BOUNDS = {
-    "south": 24.5401,
-    "north": 24.6004,
-    "west": 46.48,
-    "east": 46.5789,
-    "center_lat": (24.5401 + 24.6004) / 2,
-    "center_lon": (46.48 + 46.5789) / 2,
+    "south": 24.685,
+    "north": 24.72,
+    "west": 46.66,
+    "east": 46.695,
+    "center_lat": (24.685 + 24.72) / 2,
+    "center_lon": (46.66 + 46.695) / 2,
 }
 
 print(f"✅ Map center: {MAP_BOUNDS['center_lat']:.4f}, {MAP_BOUNDS['center_lon']:.4f}")

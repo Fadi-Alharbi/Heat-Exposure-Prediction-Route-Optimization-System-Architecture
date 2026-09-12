@@ -9,6 +9,8 @@ geopandas>=0.14
 shapely>=2.0
 folium>=0.15
 branca>=0.7
+pyproj>=3.6
+fiona>=1.9
 
 # Weather data
 requests>=2.31
@@ -33,6 +35,7 @@ pydantic-settings>=2.1
 
 # UI
 streamlit>=1.29
+streamlit-folium>=0.15
 plotly>=5.18
 
 # Utilities
